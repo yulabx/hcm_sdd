@@ -93,6 +93,26 @@ flowchart LR
 | 建立 VM | 在 provider 建立 VM 或記錄 HCM VM | VM |
 | 操作 VM 狀態 | 啟動、停止或追蹤 VM 狀態 | VM 狀態 |
 
+### 4.5 文件分層與呼叫鏈
+
+HCM SDD 以分層方式描述系統：
+
+```text
+功能畫面 Event
+  -> HCM Backend API
+    -> Provider Plugin 掛點
+      -> Provider 外部 API / SDK
+        -> HCM 邏輯資料模型
+```
+
+各文件角色如下：
+
+- `12/13/14/15/16/17`：描述功能畫面與 Event。
+- `03_HCM_Backend_API_Contract.md`：描述 Frontend 與 Backend 的 HTTP API。
+- `02_Provider_Plugin_Model.md`：描述 Provider Plugin 掛點與標準輸入/輸出。
+- `provider_plugins/*.md`：描述各 provider 的外部 API / SDK 與欄位轉換。
+- `01_Business_Data_Dictionary.md`：描述 HCM 邏輯資料模型。
+
 ## 5. 功能地圖
 
 | 功能 | 業務目的 | 主要資料 | Provider 影響 |

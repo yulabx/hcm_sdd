@@ -285,8 +285,11 @@ SDD 與後續開發應以本章邏輯資料模型為準；SQLite document store 
 | `site` | enum/string | 是 | 站點，例如 `primary`、`dr` |
 | `status` | enum | 是 | `active` 或 `inactive` |
 | `cpu_total` | number | 是 | CPU 總量，Core / vCPU |
+| `cpu_provisioned` | number/null | 否 | CPU 已配置量（provider 回報或同步推導） |
 | `mem_total_gb` | number | 是 | Memory 總量，GB |
+| `mem_provisioned_gb` | number/null | 否 | Memory 已配置量，GB（provider 回報或同步推導） |
 | `disk_total_tb` | number | 是 | Disk 總量，TB |
+| `disk_provisioned_tb` | number/null | 否 | Disk 已配置量，TB（provider 回報或同步推導） |
 | `subnet_ids` | string[] | 是 | 可用 subnet ID 清單 |
 | `allowed_vm_envs` | string[] | 否 | 可建立 VM 的環境，例如 Prod、UAT |
 | `default_security_group_ids` | string[] | 否 | 預設 Security Group |
