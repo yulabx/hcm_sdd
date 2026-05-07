@@ -189,9 +189,296 @@ HCM 需用統一單位呈現資源，避免 provider 原生單位混用。
 | Provider 來源識別 | provider 原始 VM ID | 開關機、追蹤狀態時使用 |
 | Tags | Project、System、Env、Namespace 等標記 | 用於歸屬與篩選 |
 
-## 6. 標準狀態
+## 6. 邏輯資料模型與儲存實作定位
 
-### 6.1 VM 狀態
+本章定義 HCM 的邏輯資料模型，供正式開發時轉換為 production database schema、API DTO、前後端型別與測試資料。邏輯資料模型描述的是業務物件、欄位、關聯、狀態與生命週期，不綁定特定資料庫產品。
+
+### 6.1 目前參考實作
+
+目前 demo / reference implementation 使用 SQLite document store 保存資料：
+
+| 項目 | 目前實作 |
+|---|---|
+| Database | SQLite |
+| Table | `documents` |
+| Primary Key | `collection` + `id` |
+| Payload | `json` |
+| Metadata | `created_at`、`updated_at` |
+
+此儲存方式用於 demo、快速驗證與本機部署，不代表正式產品資料庫 physical schema。正式開發可依部署架構、交易一致性、查詢效能、稽核與維運需求，將本文件定義的邏輯資料模型轉換為 PostgreSQL、MySQL、document database 或其他持久化設計。
+
+SDD 與後續開發應以本章邏輯資料模型為準；SQLite document store 僅作為目前原始碼行為與資料範例的參考。
+
+### 6.2 邏輯物件與目前 collection 對應
+
+| 邏輯物件 | 目前 collection | 說明 |
+|---|---|---|
+| Cloud Provider | `cloud-providers` | 雲端類型與 provider driver 設定 |
+| Cloud Connection | `cloud-connections` | 實際 provider endpoint、授權與同步狀態 |
+| Pool | `pools` | 可申請、分配與建立 VM 的資源池 |
+| Subnet | `subnets` | VM 可使用的網路或網段 |
+| Security Group | `security-groups` | provider 支援時同步或維護的安全群組 |
+| Project | `projects` | 業務專案或需求單位 |
+| System | `systems` | Project 底下的系統或應用 |
+| Allocation | `allocations` | 已生效的 shared quota 或 dedicated assignment |
+| Allocation Request | `allocation-requests` | Apply Wizard 送出的待處理申請 |
+| Apply History | `apply-history` | 申請歷程顯示資料 |
+| VM | `vms` | HCM 建立或 provider 同步回來的 VM |
+| User | `users` | 目前 demo 使用者與角色資料 |
+
+### 6.3 欄位命名與單位規則
+
+| 類別 | 規則 |
+|---|---|
+| 欄位命名 | 目前前後端資料欄位以 snake_case 為主，例如 `pool_id`、`quota_mem_gb`、`disk_total_tb` |
+| ID 欄位 | 每個邏輯物件必須有 HCM 內部 `id` |
+| Provider 來源識別 | provider 原始識別應保存在 `cloud_ref` 或 `ref.id` 等欄位，供同步、開關機、狀態追蹤使用 |
+| CPU | HCM 標準呈現以 Core / vCPU 表示 |
+| Memory | HCM 標準呈現以 GB 表示 |
+| Pool Disk | Pool 容量以 TB 表示 |
+| VM Disk | VM 磁碟以 GB 表示 |
+| 狀態欄位 | 必須使用本文件「標準狀態」章節列出的允許值，若 provider 需要額外狀態需先定義映射 |
+| 敏感欄位 | password、token、secret、refresh token 等不得在查詢 response 中明文回傳 |
+
+### 6.4 主要邏輯資料模型
+
+以下欄位為正式開發時的邏輯 contract。實際 production schema 可拆表或正規化，但不得遺失欄位語意與關聯。
+
+#### Cloud Provider
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `id` | string | 是 | HCM 內部 provider ID |
+| `name` | string | 是 | 顯示名稱 |
+| `type` | enum | 是 | `private` 或 `public` |
+| `driver` | string | 否 | 對應 provider driver，例如 `aws`、`harvester` |
+| `enabled` | boolean | 否 | 是否啟用；未填時可視為啟用 |
+| `sites` | array | 否 | 可用站點、region 與環境設定 |
+| `subnetTypes` | array | 否 | 此 provider 可選 subnet 類型 |
+| `vmFormSchema` | object | 否 | VM 建立表單規則 |
+| `networkPolicy` | object | 否 | VM IP 與 Security Group 策略 |
+| `vmCatalog` | object | 否 | provider 預設 VM catalog，可被 pool catalog 覆蓋 |
+
+#### Cloud Connection
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `id` | string | 是 | HCM connection ID |
+| `cloud` | string | 是 | 所屬 Cloud Provider ID |
+| `label` | string | 是 | 顯示名稱 |
+| `base_url` | string | 是 | provider endpoint 或介接 API root |
+| `auth` | object | 是 | 授權資料；敏感欄位查詢時需遮罩 |
+| `pool_filter` | string[] | 否 | 限制同步範圍 |
+| `tls_skip_verify` | boolean | 否 | 是否略過 TLS 驗證 |
+| `sync_status` | enum | 是 | `idle`、`syncing`、`ok`、`error` |
+| `last_synced_at` | string/null | 否 | 最後同步時間 |
+| `sync_progress` | object/null | 否 | 同步中進度摘要 |
+
+#### Pool
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `id` | string | 是 | HCM pool ID |
+| `name` | string | 是 | 顯示名稱 |
+| `cloud` | string | 是 | Cloud Provider ID |
+| `type` | enum | 是 | `shared` 或 `dedicated` |
+| `site` | enum/string | 是 | 站點，例如 `primary`、`dr` |
+| `status` | enum | 是 | `active` 或 `inactive` |
+| `cpu_total` | number | 是 | CPU 總量，Core / vCPU |
+| `mem_total_gb` | number | 是 | Memory 總量，GB |
+| `disk_total_tb` | number | 是 | Disk 總量，TB |
+| `subnet_ids` | string[] | 是 | 可用 subnet ID 清單 |
+| `allowed_vm_envs` | string[] | 否 | 可建立 VM 的環境，例如 Prod、UAT |
+| `default_security_group_ids` | string[] | 否 | 預設 Security Group |
+| `vmCatalog` | object | 否 | 此 pool 可用 template、image、flavor、disk type |
+| `ref` | object | 否 | provider 原始參照，例如 VPC、VDC、Cluster ID |
+| `project_id` | string/null | 否 | dedicated pool 指派後的 project 參考，視實作策略可由 Allocation 表示 |
+| `system_id` | string/null | 否 | dedicated pool 指派後的 system 參考，視實作策略可由 Allocation 表示 |
+
+#### Subnet
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `id` | string | 是 | HCM subnet ID |
+| `name` | string | 是 | 顯示名稱 |
+| `cloud` | string | 是 | Cloud Provider ID |
+| `cidr` | string | 否 | CIDR，provider 未提供時可待補 |
+| `gateway` | string/null | 否 | Gateway |
+| `site` | enum/string | 是 | 站點 |
+| `status` | enum | 是 | `active` 或 `inactive` |
+| `type` | string | 是 | subnet 業務用途 |
+| `pool_id` | string/null | 否 | 單一 pool 關聯，保留相容欄位 |
+| `pool_ids` | string[] | 否 | 多 pool 關聯 |
+| `extFields` | object | 否 | provider 或業務擴充欄位 |
+| `ref` | object | 否 | provider network 原始參照 |
+
+#### Security Group
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `id` | string | 是 | HCM Security Group ID |
+| `name` | string | 是 | 顯示名稱 |
+| `cloud` | string | 是 | Cloud Provider ID |
+| `pool_id` | string/null | 否 | 所屬 pool |
+| `vpc_id` | string/null | 否 | AWS VPC 或 provider 等價範圍 |
+| `system_id` | string/null | 否 | system-managed security group 時的 system |
+| `description` | string/null | 否 | 說明 |
+| `scope` | enum | 否 | `pool-default`、`system-owned`、`shared-common` |
+| `ref` | object | 否 | provider 安全群組原始參照 |
+| `tags` | object | 否 | provider 或 HCM 標籤 |
+
+#### Project
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `id` | string | 是 | Project ID |
+| `code` | string | 是 | 專案代碼 |
+| `name` | string | 是 | 專案名稱 |
+| `owner` | string | 是 | 專案負責人 |
+| `dept` | string | 否 | 部門 |
+
+#### System
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `id` | string | 是 | System ID |
+| `project_id` | string | 是 | 所屬 Project ID |
+| `code` | string | 是 | 系統代碼 |
+| `name` | string | 是 | 系統名稱 |
+| `envs` | string[] | 是 | 系統使用環境 |
+| `default_security_group_ids` | string[] | 否 | system 預設 Security Group |
+
+#### Allocation Request
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `id` | string | 是 | Request ID |
+| `project` | string | 是 | 申請專案名稱 |
+| `project_id` | string/null | 否 | 已存在 Project ID |
+| `applicant` | string | 是 | 申請人 |
+| `created` | string | 是 | 建立日期或時間 |
+| `status` | enum | 是 | `pending`、`completed`、`cancelled` |
+| `systems` | array | 是 | 申請涉及的 system 與 mount 清單 |
+
+`systems[]` 主要欄位：
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `name` | string | 是 | System 名稱 |
+| `code` | string | 是 | System 代碼 |
+| `system_id` | string/null | 否 | 已存在 System ID |
+| `mounts` | array | 是 | Pool 需求清單 |
+
+`mounts[]` 主要欄位：
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `pool_id` | string | 是 | 申請的 pool |
+| `est_cpu` | number | 否 | shared pool 申請 CPU |
+| `est_mem` | number | 否 | shared pool 申請 Memory GB |
+| `est_disk` | number | 否 | shared pool 申請 Disk TB |
+| `_done` | boolean | 是 | 此 mount 是否已配置完成 |
+| `_key` | string | 是 | 前端追蹤用 key |
+| `note` | string | 否 | 備註 |
+
+#### Apply History
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `id` | string | 是 | 對應 Request ID 或歷程 ID |
+| `project` | string | 是 | 專案名稱 |
+| `systems` | string[] | 是 | 系統摘要 |
+| `status` | enum | 是 | `pending` 或 `done`；此為歷程顯示狀態，不等同 Allocation Request 狀態 |
+| `created` | string | 是 | 建立日期 |
+| `applicant` | string | 否 | 申請人 |
+| `note` | string | 是 | 摘要或備註 |
+
+#### Allocation
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `id` | string | 是 | Allocation ID |
+| `mode` | enum | 是 | `shared` 或 `dedicated` |
+| `pool_id` | string | 是 | 所屬 pool |
+| `project_id` | string | 是 | Project ID |
+| `system_id` | string | 是 | System ID |
+| `env` | string | 是 | 環境 |
+| `site` | string | 是 | 站點 |
+| `status` | enum | 是 | `active` 或 `inactive` |
+| `quota_cpu` | number | 是 | shared quota CPU；dedicated 可為 0 |
+| `quota_mem_gb` | number | 是 | shared quota Memory GB；dedicated 可為 0 |
+| `quota_disk_tb` | number | 是 | shared quota Disk TB；dedicated 可為 0 |
+| `allowed_subnet_ids` | string[] | 否 | 此 allocation 可用 subnet |
+| `namespace` | string/null | 否 | Harvester 等 provider 附加隔離資源 |
+| `namespace_status` | enum/null | 否 | `pending`、`ready`、`error` |
+| `namespace_error` | string/null | 否 | provider extension 錯誤訊息 |
+
+#### VM
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `id` | string | 是 | HCM VM ID |
+| `name` | string | 是 | VM 顯示名稱 |
+| `hostname` | string | 否 | 主機名稱 |
+| `pool_id` | string | 是 | 所屬 pool |
+| `alloc_id` | string/null | 否 | shared allocation ID |
+| `status` | enum | 是 | VM 標準狀態 |
+| `vcpu` | number | 是 | CPU Core / vCPU |
+| `ram_gb` | number | 是 | Memory GB |
+| `disk_gb` | number | 是 | Disk GB |
+| `disks` | array | 否 | 磁碟清單 |
+| `subnet_id` | string/null | 否 | 主要 subnet |
+| `ip` | string/null | 否 | 主要 IP |
+| `ip_allocation_mode` | enum | 否 | `auto` 或 `static` |
+| `nics` | array | 否 | NIC 清單 |
+| `template_id` | string/null | 否 | template 來源 |
+| `image` | string | 否 | image / AMI 來源 |
+| `flavor` | string | 否 | flavor / instance type |
+| `tags` | object | 是 | `env`、`project_id`、`system_id`、`namespace` 等 |
+| `cloud_ref` | string | 否 | provider VM ID |
+| `href` | string | 否 | provider href 或等價識別 |
+| `ref` | object | 否 | provider 原始參照，例如 `cloud_connection_id` |
+
+`nics[]` 主要欄位：
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `name` | string | 是 | NIC 名稱 |
+| `subnet_id` | string | 是 | HCM subnet ID |
+| `ip` | string | 否 | static IP 或 provider 回報 IP |
+| `security_group_ids` | string[] | 否 | AWS 等 provider 使用 |
+
+`disks[]` 主要欄位：
+
+| 欄位 | 型別 | 必填 | 說明 |
+|---|---|---|---|
+| `name` | string | 是 | Disk 名稱 |
+| `role` | enum | 是 | `os` 或 `data` |
+| `size_gb` | number | 是 | Disk 大小，GB |
+| `type` | enum/string | 是 | `ssd`、`hdd` 或 provider 定義類型 |
+
+### 6.5 資料生命週期規則
+
+| 動作 | 邏輯規則 |
+|---|---|
+| 建立 Provider | 新增 Cloud Provider 定義；不代表已建立 provider 端資源 |
+| 刪除 Provider | 若已有 connection、pool、subnet、VM，正式產品需定義阻擋、失效或 cascade 策略；目前 demo 行為僅供參考 |
+| 建立 Connection | 保存 endpoint、授權摘要與同步範圍；敏感欄位查詢時需遮罩 |
+| 刪除 Connection | 需定義已同步 pool、subnet、security group、VM 是否保留、標示失效或一併刪除 |
+| 同步 Pool | 以 provider 來源識別與 connection 判斷同一資源；保留 HCM 已補欄位 |
+| 同步 Subnet | 以 provider network ref 與 connection 判斷同一資源；保留 HCM subnet type 與人工補值 |
+| 同步 Security Group | 以 provider security group ref 判斷同一資源；不支援 provider 可無資料 |
+| 同步 VM Catalog | 新同步項目加入 catalog；舊項目可標示 legacy，不應直接遺失使用中 VM 的來源識別 |
+| 同步 VM | 以 provider VM ref 與 pool 關聯判斷同一 VM；更新狀態、規格、IP、NIC 等 provider 回報欄位 |
+| 建立 Allocation | 建立 HCM 配置；若 provider 需要附加資源，在 allocation 生效時建立或更新 extension 欄位 |
+| 解除 Allocation | 解除 HCM 配置；是否回收 provider 附加資源需由 provider 文件定義 |
+| 建立 VM | 若 provider 支援，呼叫 provider 建立並保存 `cloud_ref`；否則僅允許 HCM 管理資料建立的規則需明確定義 |
+| 修改 VM | 目前語意為修改 HCM metadata；provider VM 規格修改需另行定義 |
+| 刪除 VM | 目前語意為刪除或停用 HCM VM record；不代表刪除 provider VM |
+
+## 7. 標準狀態
+
+### 7.1 VM 狀態
 
 | 狀態 | 業務意義 |
 |---|---|
@@ -202,7 +489,7 @@ HCM 需用統一單位呈現資源，避免 provider 原生單位混用。
 | stopped | VM 已停止 |
 | error | VM 或 provider 回報異常 |
 
-### 6.2 同步狀態
+### 7.2 同步狀態
 
 | 狀態 | 業務意義 |
 |---|---|
@@ -211,7 +498,7 @@ HCM 需用統一單位呈現資源，避免 provider 原生單位混用。
 | ok | 最近一次同步成功 |
 | error | 最近一次同步失敗 |
 
-### 6.3 申請狀態
+### 7.3 申請狀態
 
 | 狀態 | 業務意義 |
 |---|---|
@@ -219,7 +506,7 @@ HCM 需用統一單位呈現資源，避免 provider 原生單位混用。
 | completed | 申請已轉成 allocation 或已由管理員完成 |
 | done | 申請歷程中表示已完成的顯示狀態 |
 
-## 7. 主要資料關聯
+## 8. 主要資料關聯
 
 ```mermaid
 flowchart TD
@@ -239,7 +526,7 @@ flowchart TD
   SecurityGroup --> VM
 ```
 
-## 8. 待確認事項
+## 9. 待確認事項
 
 | 項目 | 說明 |
 |---|---|
@@ -247,4 +534,3 @@ flowchart TD
 | Security Group 在非 AWS provider 的標準化程度 | 需由各 provider 文件說明 |
 | VM 修改與刪除是否納入本次業務範圍 | 舊需求有不支援描述，需與產品目標確認 |
 | viewer / project viewer 權限是否正式開放 | 若正式納入，需在 User and Role 文件補完整權限表 |
-
