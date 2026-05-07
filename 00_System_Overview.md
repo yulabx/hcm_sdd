@@ -153,12 +153,12 @@ HCM 不把不同 provider 的差異寫死在功能主流程中，而是透過 pr
 | VM Management | VM、VM 狀態 | Overview、Project Dimension、VM Management |
 | User and Role | User、Project 可見範圍 | 全系統資料可見性 |
 
-## 8. 待確認事項
+## 8. 決策紀錄
 
-| 項目 | 說明 |
+| 項目 | 決策 |
 |---|---|
-| viewer / project viewer 是否正式納入本次 SDD | 舊需求提到這兩個角色，但目前主流程以 admin / project_manager 為主 |
-| VM 刪除與修改的業務範圍 | 電子發票需求曾提到不支援 VM 刪除/修改，但通用 HCM 仍需確認是否保留 |
-| vSphere VM 建立方式 | 舊需求提到可能透過既有 Terraform 流程，需要在 provider 文件中確認 |
-| vCD 是否允許 HCM 建立 VM | 舊需求曾標註不支援，需與目前產品目標對齊 |
+| viewer / project viewer 是否正式納入本次 SDD | 納入本次 SDD 範圍 |
+| VM 刪除與修改的業務範圍 | 本次不納入 VM 刪除與修改 |
+| vSphere VM 建立方式 | 走既有 Terraform 流程 |
+| vCD 是否允許 HCM 建立 VM | 不允許 |
 

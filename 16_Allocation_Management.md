@@ -341,12 +341,12 @@ Provider Plugin 文件需說明：
 | Request 完成狀態 | Apply History | 讓申請人看到申請已完成 |
 | Provider 附加資源狀態 | VM Management | 供後續建立 VM 時使用 Provider 需要的附加識別 |
 
-## 8. 待確認事項
+## 8. 決策紀錄
 
-| 項目 | 說明 | 建議確認方向 |
-| --- | --- | --- |
-| Request 是否需要 Reject / Cancel | 目前主流程描述完成申請，未定義退回或取消 | 若業務需要，應補充 Request 退回畫面與狀態 |
-| Allocation 解除與既有 VM 關係 | 解除配置可能影響已建立 VM | 建議在 VM Management 或資源回收流程補充 |
-| 新專案與新系統生效時點 | Apply Wizard 可能帶入新專案/系統 | 建議與 Apply Wizard 待確認事項一起定義 |
-| Provider 附加資源建立時點 | 共通規則為 Allocation Configure / Execute 生效時建立，不等到 VM 建立時才建立 | 各 Provider Plugin 需補充附加資源類型、欄位、狀態與外部 API |
-| Dedicated Request 是否可部分完成 | Shared mount 需要先完成，Dedicated mount 目前偏自動處理 | 若業務需要人工審核 Dedicated，需補充待處理狀態 |
+| 項目 | 決策 |
+| --- | --- |
+| Request 是否需要 Reject / Cancel | 需要，兩者皆納入 |
+| Allocation 解除與既有 VM 關係 | 僅解除 Project/System 與資源綁定，不自動異動 VM |
+| 新專案與新系統生效時點 | 沿用 Apply Wizard 規則：審核通過後生效 |
+| Provider 附加資源建立時點 | 維持 Configure / Execute 生效時建立 |
+| Dedicated Request 是否可部分完成 | 不可部分完成，必須全部完成才算完成 |

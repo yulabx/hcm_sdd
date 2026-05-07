@@ -232,7 +232,7 @@ SDD 與後續開發應以本章邏輯資料模型為準；SQLite document store 
 |---|---|
 | 欄位命名 | 目前前後端資料欄位以 snake_case 為主，例如 `pool_id`、`quota_mem_gb`、`disk_total_tb` |
 | ID 欄位 | 每個邏輯物件必須有 HCM 內部 `id` |
-| Provider 來源識別 | provider 原始識別應保存在 `cloud_ref` 或 `ref.id` 等欄位，供同步、開關機、狀態追蹤使用 |
+| Provider 來源識別 | provider 原始識別統一保存在 `ref.id`（及必要的 `ref.*`）欄位，供同步、開關機、狀態追蹤使用 |
 | CPU | HCM 標準呈現以 Core / vCPU 表示 |
 | Memory | HCM 標準呈現以 GB 表示 |
 | Pool Disk | Pool 容量以 TB 表示 |
@@ -438,7 +438,7 @@ SDD 與後續開發應以本章邏輯資料模型為準；SQLite document store 
 | `image` | string | 否 | image / AMI 來源 |
 | `flavor` | string | 否 | flavor / instance type |
 | `tags` | object | 是 | `env`、`project_id`、`system_id`、`namespace` 等 |
-| `cloud_ref` | string | 否 | provider VM ID |
+| `ref.id` | string | 否 | provider VM ID |
 | `href` | string | 否 | provider href 或等價識別 |
 | `ref` | object | 否 | provider 原始參照，例如 `cloud_connection_id` |
 
@@ -475,7 +475,7 @@ SDD 與後續開發應以本章邏輯資料模型為準；SQLite document store 
 | 同步 VM | 以 provider VM ref 與 pool 關聯判斷同一 VM；更新狀態、規格、IP、NIC 等 provider 回報欄位 |
 | 建立 Allocation | 建立 HCM 配置；若 provider 需要附加資源，在 allocation 生效時建立或更新 extension 欄位 |
 | 解除 Allocation | 解除 HCM 配置；是否回收 provider 附加資源需由 provider 文件定義 |
-| 建立 VM | 若 provider 支援，呼叫 provider 建立並保存 `cloud_ref`；否則僅允許 HCM 管理資料建立的規則需明確定義 |
+| 建立 VM | 若 provider 支援，呼叫 provider 建立並保存 `ref.id`；否則僅允許 HCM 管理資料建立的規則需明確定義 |
 | 修改 VM | 目前語意為修改 HCM metadata；provider VM 規格修改需另行定義 |
 | 刪除 VM | 目前語意為刪除或停用 HCM VM record；不代表刪除 provider VM |
 

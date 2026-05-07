@@ -265,7 +265,7 @@ Pool Step
 | Site、Region | 總覽分類與後續管理使用 | HCM Provider Site 設定、admin 補填 |
 | Allowed Env | 控制此 pool 可建立哪些環境的 VM | HCM Provider Env 設定、admin 補填 |
 | CPU / Memory / Disk 容量 | 顯示與校正資源容量 | Provider 同步結果、admin 補填 |
-| CPU MHz/Core 換算值 | VCD / vSphere 類 provider 需要時顯示 | Provider 同步結果、admin 補填 |
+| CPU MHz/Core 換算值 | VCD / vSphere 類 provider 需要時顯示 | Provider 同步結果優先帶入（VCD 可取 `VCpuInMhz2` 當預設），admin 可再調整 |
 
 **Event**
 
@@ -483,12 +483,12 @@ Cloud Settings 不負責 VM 建立、VM 開關機；這些 plugin 掛點屬於 V
 | VM Catalog | VM Management | 建立 VM 時選擇 template、image、flavor |
 | VM | Resource Overview、Project Dimension、VM Management | 顯示既有 VM、狀態與歸屬 |
 
-## 8. 待確認事項
+## 8. 決策紀錄
 
-| 項目 | 說明 |
+| 項目 | 決策 |
 |---|---|
-| Provider 刪除是否需限制已有 connection | 目前文件描述為需注意 connection 數，實際規則需確認是允許刪除或阻擋 |
-| Connection 刪除後是否連帶清除同步資料 | 需確認 Pool、Subnet、VM 是否保留、標示失效或一併移除 |
-| vCD Service Account 是否為唯一正式授權方式 | 目前保留 Basic、Service Account、Token 的描述，實際建議方式需 provider 文件定義 |
-| 同步 Template 與 Image 命名 | 畫面會依 provider 顯示 Template 或 Image，provider 文件需定義各自語意 |
-| CPU MHz/Core 換算是否由管理員維護 | VCD / vSphere 可能需要換算值，需確認業務上是否允許管理員調整 |
+| Provider 刪除規則 | 允許刪除 Provider，並一併刪除關聯 Connection 與 HCM 資料 |
+| Connection 刪除後同步資料處理 | 一併移除 Pool、Subnet、VM 等同步資料 |
+| vCD 授權方式 | 保留 Basic、Service Account、Token 三種方式 |
+| 同步 Template 與 Image 命名 | 依 Provider 顯示 Template 或 Image |
+| CPU MHz/Core 換算值來源與維護 | 優先使用同步 API 回傳值；若未回傳則使用系統預設，且允許人工調整 |
