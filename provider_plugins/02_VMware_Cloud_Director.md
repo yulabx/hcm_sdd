@@ -21,16 +21,16 @@ HCM 中的 Cloud / Provider ID 可以是業務命名；Driver ID 固定為 `vmwa
 
 | 02 規範掛載點 | VCD 是否支援 | VCD 文件章節 | 標準輸入 | 標準輸出 | 外部 API 章節 | 影響的 HCM 資料 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Provider 授權 | 支援 | Auth 與連線設定、Provider 能力支援矩陣 | Connection Auth Input | Auth Result | 授權/登入 | Cloud Connection |
+| Provider 授權 | 支援 | Auth 與連線設定 | Connection Auth Input | Auth Result | 授權/登入 | Cloud Connection |
 | 同步資源池 | 支援 | VDC / Pool 映射 | Sync Pools Input | Pool Sync Result | 同步 VDC / Pool | Pool |
 | 同步網路 | 支援 | Network / Subnet 映射 | Sync Network Input | Network Sync Result | 同步 Network | Subnet |
 | 同步 VM 規格來源 | 支援 | Template Catalog 映射 | Sync VM Catalog Input | VM Catalog Result | 同步 vApp Template | Pool VM Catalog |
 | 同步 VM 清單 | 支援 | VM 映射、狀態映射 | Sync VM Inventory Input | VM Inventory Result | 同步 VM 清單 | VM |
-| Allocation 附加資源 | 不支援 | Provider 能力支援矩陣 | Allocation Extension Input | Allocation Extension Result | 不支援 | 無 |
-| 建立 VM | 不支援 | Provider 能力支援矩陣 | Create VM Input | Create VM Result | 不支援 | 無 |
-| VM 開機 | 不支援 | Provider 能力支援矩陣 | VM Power Input | VM Power Result | 不支援 | 無 |
-| VM 關機 | 不支援 | Provider 能力支援矩陣 | VM Power Input | VM Power Result | 不支援 | 無 |
-| VM 狀態追蹤 | 不支援 | Provider 能力支援矩陣 | VM Status Input | VM Status Result | 不支援 | 無 |
+| Allocation 附加資源 | 不支援 | 功能畫面差異 | Allocation Extension Input | Allocation Extension Result | 不支援 | 無 |
+| 建立 VM | 不支援 | 功能畫面差異 | Create VM Input | Create VM Result | 不支援 | 無 |
+| VM 開機 | 不支援 | 功能畫面差異 | VM Power Input | VM Power Result | 不支援 | 無 |
+| VM 關機 | 不支援 | 功能畫面差異 | VM Power Input | VM Power Result | 不支援 | 無 |
+| VM 狀態追蹤 | 不支援 | 功能畫面差異 | VM Status Input | VM Status Result | 不支援 | 無 |
 
 ### 2.2 標準輸入/輸出落地表
 
@@ -46,10 +46,10 @@ HCM 中的 Cloud / Provider ID 可以是業務命名；Driver ID 固定為 `vmwa
 | VM Catalog Result | vApp Template | Template Catalog 映射 | HCM 顯示 template、default CPU、Memory、Disk |
 | Sync VM Inventory Input | Cloud Connection、VDC id | 同步 VM 清單 | 以 Query API 列 VM，再讀 VM detail 補 NIC / Disk |
 | VM Inventory Result | VMRecord + VM detail XML | VM 映射 | VM 狀態保留 VCD status，HCM 顯示時轉標準狀態 |
-| Allocation Extension Input / Result | 不適用 | Provider 能力支援矩陣 | VCD Allocation 使用 HCM 共通 Project/System/Quota/Subnet |
-| Create VM Input / Result | 不適用 | Provider 能力支援矩陣 | 目前專案未接 VCD 建立 VM 能力 |
-| VM Power Input / Result | 不適用 | Provider 能力支援矩陣 | 目前專案未接 VCD 開關機能力 |
-| VM Status Input / Result | 不適用 | Provider 能力支援矩陣 | 目前專案未接 VCD 單台 VM 狀態追蹤能力 |
+| Allocation Extension Input / Result | 不適用 | 功能畫面差異 | VCD Allocation 使用 HCM 共通 Project/System/Quota/Subnet |
+| Create VM Input / Result | 不適用 | 功能畫面差異 | 目前專案未接 VCD 建立 VM 能力 |
+| VM Power Input / Result | 不適用 | 功能畫面差異 | 目前專案未接 VCD 開關機能力 |
+| VM Status Input / Result | 不適用 | 功能畫面差異 | 目前專案未接 VCD 單台 VM 狀態追蹤能力 |
 
 ## 3. Auth 與連線設定
 
@@ -67,67 +67,7 @@ VCD Connection 可使用三種授權方式：Basic、Token、Service Account。S
 | Client ID | Service Account client id | Service Account 時必填 | `hcm-client` | 啟動 device authorization 使用 |
 | Refresh Token | Service Account refresh token | 完成授權後必填 | `<masked>` | 可由授權流程取得 |
 
-## 4. Provider 能力支援矩陣
-
-| 能力 | 是否支援 | Provider 資料來源 | 產生/更新的 HCM 資料 |
-| --- | --- | --- | --- |
-| 授權/登入 | 支援 | CloudAPI session、Tenant OAuth | Cloud Connection 授權狀態 |
-| 同步資源池 | 支援 | VDC | Pool |
-| 同步網路 | 支援 | Org VDC Network | Subnet |
-| 同步安全群組 | 不支援 | VCD 目前未納入 HCM Security Group 同步 | 無 |
-| 同步 VM 規格來源 | 支援 | vApp Template | Pool VM Catalog |
-| 同步 VM 清單 | 支援 | VM Query + VM detail XML | VM |
-| 建立 Allocation 附加資源 | 不支援 | 無 | 無 |
-| 建立 VM | 不支援 | 目前專案未接 VCD instantiate vApp | 無 |
-| VM 開機/關機 | 不支援 | 目前專案未接 VCD power action | 無 |
-| VM 狀態追蹤 | 不支援 | 目前專案未接單台 VM poll | 無 |
-
-## 5. Provider 到 HCM 欄位映射
-
-### 5.1 VDC / Pool 映射
-
-| Provider 欄位/概念 | Provider 意義 | HCM 欄位 | HCM 意義 | 轉換規則 | 範例 |
-| --- | --- | --- | --- | --- | --- |
-| VDC id | VDC 識別 | Pool cloud_ref | Provider 來源識別 | URN tail 或 VDC id | `vdc-001` |
-| VDC name | VDC 名稱 | Pool name | HCM 顯示名稱 | 原樣帶入 | `Prod VDC` |
-| ComputeCapacity.Cpu.Limit | CPU 上限 | Pool CPU total | 可配置 CPU | 原始單位多為 MHz，HCM 顯示時依規則換算 Core | `80000 MHz` |
-| ComputeCapacity.Cpu.Used | CPU 已用 | Pool CPU used | 已使用 CPU | 同 CPU total 換算 | `24000 MHz` |
-| ComputeCapacity.Memory | Memory 容量 | Pool Memory | 記憶體容量 | MB 轉 GB | `512 GB` |
-| VdcStorageProfile | Storage 容量 | Pool Disk | 磁碟容量 | MB 轉 GB/TB；unlimited 需標記 | `20 TB` |
-
-### 5.2 Network / Subnet 映射
-
-| Provider 欄位/概念 | Provider 意義 | HCM 欄位 | HCM 意義 | 轉換規則 | 範例 |
-| --- | --- | --- | --- | --- | --- |
-| Org VDC Network id | Network 識別 | Subnet cloud_ref | Provider 來源識別 | `{networkId}-subnet-{index}` | `urn:vcloud:network:001-subnet-1` |
-| name | Network 顯示名稱 | Subnet name | HCM 顯示名稱 | 多 subnet 時加上 subnet 序號 | `APP-NET / subnet 1` |
-| gateway + prefixLength | 網段資訊 | Subnet cidr / gateway | HCM 網段 | 由 gateway 與 prefixLength 推導 CIDR | `10.1.0.0/24` |
-| ownerRef | 所屬 VDC / VDC Group | Subnet pool relation | 可用 Pool | owner 為 VDC 時可直接連到 Pool | `vdc-001` |
-| status | Network 狀態 | Subnet status | 是否可用 | REALIZED -> active；其他 -> inactive | `active` |
-
-### 5.3 Template Catalog 映射
-
-| Provider 欄位/概念 | Provider 意義 | HCM 欄位 | HCM 意義 | 轉換規則 | 範例 |
-| --- | --- | --- | --- | --- | --- |
-| VAppTemplateRecord href/id | Template 識別 | Template id | VM 建立來源選項 | href tail 作為 cloud_ref | `vappTemplate-001` |
-| name | Template 名稱 | Template label | 使用者可讀名稱 | 原樣帶入 | `Ubuntu 22.04` |
-| numberOfCpus | 預設 CPU | defaultVcpu | 建立 VM 預設值 | 數字帶入 | `2` |
-| memoryAllocationMB | 預設 Memory | defaultRamGb | 建立 VM 預設值 | MB 轉 GB | `4 GB` |
-| storageKB | 預設 Disk | defaultDiskGb | 建立 VM 預設值 | KB 轉 GB | `50 GB` |
-
-### 5.4 VM 映射
-
-| Provider 欄位/概念 | Provider 意義 | HCM 欄位 | HCM 意義 | 轉換規則 | 範例 |
-| --- | --- | --- | --- | --- | --- |
-| VMRecord href/id | VM 識別 | VM cloud_ref | Provider VM 識別 | href tail 作為 id | `vm-001` |
-| name | VM 名稱 | VM name / hostname | HCM 顯示名稱 | detail XML 可補 hostname | `app-01` |
-| status | VCD VM 狀態 | VM status | HCM 狀態 | provider 文件保留原值並由 HCM 顯示轉換 | `POWERED_ON` |
-| numberOfCpus | VM CPU | VM CPU | vCPU | 數字帶入 | `4` |
-| memoryMB | VM Memory | VM Memory | GB | MB 轉 GB | `16 GB` |
-| totalStorageAllocatedMb / disks | VM Disk | VM Disk | GB | MB 轉 GB；detail XML 可補 disk list | `100 GB` |
-| NetworkConnectionSection | VM NIC | VM NIC / IP | 網卡與 IP | 解析 NetworkConnection | `10.1.0.10` |
-
-## 6. 功能畫面差異
+## 4. 功能畫面差異
 
 | 功能 | 畫面/流程位置 | 畫面差異 | 欄位/選項差異 | 可操作能力 | 業務限制/提示 |
 | --- | --- | --- | --- | --- | --- |
@@ -137,13 +77,13 @@ VCD Connection 可使用三種授權方式：Basic、Token、Service Account。S
 | Allocation Management | Shared Allocation 表單 | 使用共通欄位 | Project、System、Quota、Subnet | 不建立 Provider 附加資源 | 不顯示 Provider Extension |
 | VM Management | VM 清單 | 顯示同步回來的 VCD VM | VCD status、IP、Template 來源 | 目前以檢視同步資料為主 | 目前不支援由 HCM 建立/開關 VCD VM |
 
-## 7. 外部 API 上下行與範例
+## 5. 外部介接上下行與範例
 
 本章列出 VCD Provider Plugin 需要呼叫的外部 API。URL 皆以 Connection 表單的 `Base URL` 為前綴，例如 `{baseUrl} = https://vcd.example.com`。
 
-### 7.1 授權/登入
+### 5.1 授權/登入
 
-#### 7.1.1 Basic 登入
+#### 5.1.1 Basic 登入
 
 | 項目 | 說明 |
 | --- | --- |
@@ -167,7 +107,7 @@ Accept: application/json;version=39.1
 | `auth_status` | HTTP status + token 是否取得 | 成功為 `authorized`，失敗為 `error` |
 | `auth_message` | 錯誤訊息（若有） | 失敗時回寫可讀訊息 |
 
-#### 7.1.2 Service Account 啟動授權
+#### 5.1.2 Service Account 啟動授權
 
 | 項目 | 說明 |
 | --- | --- |
@@ -203,7 +143,7 @@ client_id=hcm-client
 | `poll_interval_sec` | `interval` | 輪詢間隔秒數 |
 | `auth_status` | 固定回寫 pending | 等待使用者完成授權 |
 
-#### 7.1.3 Service Account 取得 / 更新 Token
+#### 5.1.3 Service Account 取得 / 更新 Token
 
 | 項目 | 說明 |
 | --- | --- |
@@ -227,15 +167,19 @@ grant_type=refresh_token&refresh_token=<masked>&client_id=hcm-client
 | `auth_status` | token API 成功/失敗 | 成功為 `authorized`，失敗為 `error` |
 | `auth_message` | OAuth error response（若有） | 失敗時回寫可讀訊息 |
 
-### 7.2 同步 VDC / Pool
+### 5.2 同步 VDC / Pool
 
-#### 7.2.1 API 清單
+#### 5.2.1 API 清單
 
 | 順序 | Method | URL | 用途 | 上行 | 下行取用欄位 |
 | --- | --- | --- | --- | --- | --- |
 | 1 | GET | `{baseUrl}/cloudapi/1.0.0/vdcs?page={page}&pageSize=25` | 列出 tenant 可見 VDC | 無 body | `values[].id`、`values[].name` |
 | 2 | GET | `{baseUrl}/api/vdc/{vdcId}` | 取得 VDC 容量 | 無 body | `ComputeCapacity`、`VdcStorageProfiles` |
 | 3 | GET | VDC storage profile href | 取得 StorageProfile 容量 | 無 body | `Limit`、`StorageUsedMB`、`Units` |
+
+#### 5.2.2 上下行範例
+
+**上行 Request 範例：**
 
 ```http
 GET {baseUrl}/api/vdc/f40b1346-2451-47ab-946b-7d3d9c77b900
@@ -280,6 +224,8 @@ Accept: application/*+xml;version=39.1
 </ns2:Vdc>
 ```
 
+#### 5.2.3 掛載點輸出
+
 | 標準輸出欄位（Pool Sync Result） | Provider 欄位 | 重要備註 |
 | --- | --- | --- |
 | `provider_pool_id` | `values[].id`（VDC id） | 必填；Pool provider 識別 |
@@ -297,12 +243,26 @@ Accept: application/*+xml;version=39.1
 | `ref.sync_meta.cpu_mhz_per_core` | `values[].VCpuInMhz2`（若有） | MHz → Core 換算基準；同步時可帶入預設，無值時再由管理者補填 |
 | `ref.sync_meta.cpu_total_mhz` | `ComputeCapacity.Cpu.Limit` 原始 MHz | 保留原始值供未來換算調整 |
 
-### 7.3 同步 Network
+### 5.3 同步 Network
+
+#### 5.3.1 API 清單
 
 | 順序 | Method | URL | 用途 | 上行 | 下行取用欄位 |
 | --- | --- | --- | --- | --- | --- |
 | 1 | GET | `{baseUrl}/cloudapi/1.0.0/orgVdcNetworks?page={page}&pageSize=25` | 取得 Org VDC Network | 無 body | `values[].id`、`name`、`ownerRef`、`subnets.values[]`、`status` |
 | 2 | GET | `{baseUrl}/cloudapi/1.0.0/vdcGroups/{vdcGroupRef}/vdcs?page={page}&pageSize=25` | owner 為 VDC Group 時查成員 VDC | 無 body | `values[].vdcRef.id` |
+
+#### 5.3.2 上下行範例
+
+**上行 Request 範例：**
+
+```http
+GET {baseUrl}/cloudapi/1.0.0/orgVdcNetworks?page=1&pageSize=25
+Authorization: Bearer <masked>
+Accept: application/json;version=39.1
+```
+
+**下行 Response 範例：**
 
 ```json
 {
@@ -322,6 +282,8 @@ Accept: application/*+xml;version=39.1
 }
 ```
 
+#### 5.3.3 掛載點輸出
+
 | 標準輸出欄位（Network Sync Result） | Provider 欄位 | 重要備註 |
 | --- | --- | --- |
 | `provider_network_id` | `values[].id` | 必填；Subnet provider 識別來源 |
@@ -338,11 +300,25 @@ Accept: application/*+xml;version=39.1
 | `ref.pool_ref_ids` | VDC UUID 清單（由 ownerRef 解析） | 追蹤 Subnet 隸屬 Pool；prune 時依此清理 |
 | `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Subnet |
 
-### 7.4 同步 vApp Template
+### 5.4 同步 vApp Template
+
+#### 5.4.1 API 清單
 
 | 順序 | Method | URL | 用途 | 上行 | 下行取用欄位 |
 | --- | --- | --- | --- | --- | --- |
 | 1 | GET | `{baseUrl}/api/query?type=vAppTemplate&page={page}&pageSize=25&format=records&filter=vdc=={vdcId}` | 取得 VDC Template | 無 body | `VAppTemplateRecord.href`、`name`、`numberOfCpus`、`memoryAllocationMB`、`storageKB` |
+
+#### 5.4.2 上下行範例
+
+**上行 Request 範例：**
+
+```http
+GET {baseUrl}/api/query?type=vAppTemplate&page=1&pageSize=25&format=records&filter=vdc=={vdcId}
+Authorization: Bearer <masked>
+Accept: application/*+xml;version=39.1
+```
+
+**下行 Response 範例：**
 
 ```xml
 <QueryResultRecords total="1">
@@ -355,6 +331,8 @@ Accept: application/*+xml;version=39.1
 </QueryResultRecords>
 ```
 
+#### 5.4.3 掛載點輸出
+
 | 標準輸出欄位（VM Catalog Result） | Provider 欄位 | 重要備註 |
 | --- | --- | --- |
 | `template_id` | `VAppTemplateRecord.href` 最後段 | 必填；Template provider 識別 |
@@ -363,16 +341,20 @@ Accept: application/*+xml;version=39.1
 | `default_memory_gb` | `VAppTemplateRecord.memoryAllocationMB` | `MB / 1024` |
 | `default_disk_gb` | `VAppTemplateRecord.storageKB` | `KB / 1024 / 1024` |
 
-### 7.5 同步 VM 清單
+### 5.5 同步 VM 清單
 
 同步 VM 清單採二步驟 API 呼叫：
 1. **Step 1** - Query 取得 VM 清單摘要（VMRecord）
 2. **Step 2** - 依 VMRecord href 逐筆取得 VM 明細（Vm detail XML）
 
+#### 5.5.1 API 清單
+
 | 順序 | Method | URL | 用途 | 上行 | 下行取用欄位 |
 | --- | --- | --- | --- | --- | --- |
 | 1 | GET | `{baseUrl}/api/query?type=vm&page={page}&pageSize=25&format=records&filter=vdc=={vdcId}` | 查詢 VM record | 無 body | `VMRecord.href`、`name`、`status`、`ipAddress`、`numberOfCpus`、`memoryMB`、`totalStorageAllocatedMb` |
 | 2 | GET | VMRecord href | 取得 VM detail | 無 body | `ComputerName`、`NetworkConnectionSection`、disk `Item` |
+
+#### 5.5.2 上下行範例
 
 #### Step 1：Query VM Records
 
@@ -436,6 +418,8 @@ Accept: application/*+xml;version=39.1
 </Vm>
 ```
 
+#### 5.5.3 掛載點輸出
+
 | 標準輸出欄位（VM Inventory Result） | Provider 欄位 | 重要備註 |
 | --- | --- | --- |
 | `provider_vm_id` | `VMRecord.href` 最後段 | 必填；作為 provider 端 VM 識別，後續開關機與追蹤使用 |
@@ -453,7 +437,7 @@ Accept: application/*+xml;version=39.1
 | `ref.name` | `VMRecord.name` | 備援識別 |
 | `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 VM |
 
-## 8. 單位換算與狀態映射
+## 6. 單位換算與狀態映射
 
 | 項目 | VCD 單位 / 狀態 | HCM 表示 | 規則 |
 | --- | --- | --- | --- |
@@ -465,7 +449,7 @@ Accept: application/*+xml;version=39.1
 | VM status | POWERED_OFF 或 status=8 | stopped | HCM 顯示標準狀態 |
 | VM status | FAILED_CREATION | error | HCM 顯示標準狀態 |
 
-## 9. 限制與待確認
+## 7. 限制與待確認
 
 | 項目 | 說明 |
 | --- | --- |
