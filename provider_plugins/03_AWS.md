@@ -21,16 +21,16 @@ HCM 中的 Cloud / Provider ID 可以是業務命名；Driver ID 固定為 `aws`
 
 | 02 規範掛載點 | AWS 是否支援 | AWS 文件章節 | 標準輸入 | 標準輸出 | 外部介接章節 | 影響的 HCM 資料 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Provider 授權 | 支援 | Auth 與連線設定 | Connection Auth Input | Auth Result | 授權/登入 | Cloud Connection |
-| 同步資源池 | 支援 | VPC / Pool 映射 | Sync Pools Input | Pool Sync Result | 同步 VPC / Pool | Pool |
-| 同步網路 | 支援 | Network / Subnet / Security Group 映射 | Sync Network Input | Network Sync Result | 同步 Network / Security Group | Subnet、Security Group |
-| 同步 VM 規格來源 | 支援 | Image Catalog 映射 | Sync VM Catalog Input | VM Catalog Result | 同步 AMI / Image | Pool VM Catalog |
-| 同步 VM 清單 | 支援 | VM 映射、狀態映射 | Sync VM Inventory Input | VM Inventory Result | 同步 EC2 VM 清單 | VM |
+| Provider 授權 | 支援 | Auth 與連線設定 | Connection Auth Input | Auth Result | 5.1-5.2 SDK Credential Context / SDK Command 總表 | Cloud Connection |
+| 同步資源池 | 支援 | VPC / Pool 映射 | Sync Pools Input | Pool Sync Result | 5.3.1 同步 VPC / Pool | Pool |
+| 同步網路 | 支援 | Network / Subnet / Security Group 映射 | Sync Network Input | Network Sync Result | 5.3.2 同步 Subnet、5.3.3 同步 Security Group | Subnet、Security Group |
+| 同步 VM 規格來源 | 支援 | Image Catalog 映射 | Sync VM Catalog Input | VM Catalog Result | 5.3.4 同步 AMI / Image | Pool VM Catalog |
+| 同步 VM 清單 | 支援 | VM 映射、狀態映射 | Sync VM Inventory Input | VM Inventory Result | 5.3.6 同步 EC2 VM 清單 | VM |
 | Allocation 附加資源 | 不支援 | 功能畫面差異 | Allocation Extension Input | Allocation Extension Result | 不支援 | 無 |
-| 建立 VM | 支援 | 功能畫面差異、VM 映射 | Create VM Input | Create VM Result | 建立 VM | VM |
-| VM 開機 | 支援 | 狀態映射 | VM Power Input | VM Power Result | VM 開機 / 關機 | VM |
-| VM 關機 | 支援 | 狀態映射 | VM Power Input | VM Power Result | VM 開機 / 關機 | VM |
-| VM 狀態追蹤 | 支援 | VM 映射、狀態映射 | VM Status Input | VM Status Result | VM 狀態追蹤 | VM |
+| 建立 VM | 支援 | 功能畫面差異、VM 映射 | Create VM Input | Create VM Result | 5.3.5 建立 VM | VM |
+| VM 開機 | 支援 | 狀態映射 | VM Power Input | VM Power Result | 5.3.8 VM 開機 / 關機 | VM |
+| VM 關機 | 支援 | 狀態映射 | VM Power Input | VM Power Result | 5.3.8 VM 開機 / 關機 | VM |
+| VM 狀態追蹤 | 支援 | VM 映射、狀態映射 | VM Status Input | VM Status Result | 5.3.7 VM 狀態追蹤 | VM |
 
 ### 2.2 標準輸入/輸出落地表
 
@@ -193,7 +193,9 @@ AWS 不需要登入換 token。HCM 以 Access Key / Secret / Region 建立 AWS c
   "id": "vpc-0123456789abcdef0",
   "name": "prod-vpc",
   "href": "vpc-0123456789abcdef0",
-  "cloud_ref": "vpc-0123456789abcdef0",
+  "ref": {
+    "id": "vpc-0123456789abcdef0"
+  },
   "description": "AWS VPC 10.0.0.0/16",
   "allocationModel": "vpc",
   "cpu": null,
@@ -253,7 +255,9 @@ AWS 不需要登入換 token。HCM 以 Access Key / Secret / Region 建立 AWS c
 
 ```json
 {
-  "cloud_ref": "subnet-001",
+  "ref": {
+    "id": "subnet-001"
+  },
   "network_id": "subnet-001",
   "subnet_idx": 1,
   "name": "app-subnet-a",
@@ -587,7 +591,9 @@ VM 清單同步會並行查詢 VPC 內 EC2 與 Subnet，用 SubnetId 對應 Subn
 
 ```json
 {
-  "cloud_ref": "i-001",
+  "ref": {
+    "id": "i-001"
+  },
   "href": "i-001",
   "name": "app-01",
   "hostname": "ip-10-0-1-10.ap-northeast-1.compute.internal",

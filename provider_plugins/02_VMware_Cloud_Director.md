@@ -21,11 +21,11 @@ HCM 中的 Cloud / Provider ID 可以是業務命名；Driver ID 固定為 `vmwa
 
 | 02 規範掛載點 | VCD 是否支援 | 標準輸入 | 標準輸出 | 外部介接章節 | 影響的 HCM 資料 |
 | --- | --- | --- | --- | --- | --- |
-| Provider 授權 | 支援 | Connection Auth Input | Auth Result | 授權/登入 | Cloud Connection |
-| 同步資源池 | 支援 | Sync Pools Input | Pool Sync Result | 同步 VDC / Pool | Pool |
-| 同步網路 | 支援 | Sync Network Input | Network Sync Result | 同步 Network | Subnet |
-| 同步 VM 規格來源 | 支援 | Sync VM Catalog Input | VM Catalog Result | 同步 vApp Template | Pool VM Catalog |
-| 同步 VM 清單 | 支援 | Sync VM Inventory Input | VM Inventory Result | 同步 VM 清單 | VM |
+| Provider 授權 | 支援 | Connection Auth Input | Auth Result | 5.1 授權/登入 | Cloud Connection |
+| 同步資源池 | 支援 | Sync Pools Input | Pool Sync Result | 5.2 同步 VDC / Pool | Pool |
+| 同步網路 | 支援 | Sync Network Input | Network Sync Result | 5.3 同步 Network | Subnet |
+| 同步 VM 規格來源 | 支援 | Sync VM Catalog Input | VM Catalog Result | 5.4 同步 vApp Template | Pool VM Catalog |
+| 同步 VM 清單 | 支援 | Sync VM Inventory Input | VM Inventory Result | 5.5 同步 VM 清單 | VM |
 | Allocation 附加資源 | 不支援 | Allocation Extension Input | Allocation Extension Result | 不支援 | 無 |
 | 建立 VM | 不支援 | Create VM Input | Create VM Result | 不支援 | 無 |
 | VM 開機 | 不支援 | VM Power Input | VM Power Result | 不支援 | 無 |
@@ -47,7 +47,7 @@ HCM 中的 Cloud / Provider ID 可以是業務命名；Driver ID 固定為 `vmwa
 | Sync VM Inventory Input | Cloud Connection、VDC id | 同步 VM 清單 | 以 Query API 列 VM，再讀 VM detail 補 NIC / Disk |
 | VM Inventory Result | VMRecord + VM detail XML | VM 映射 | VM 狀態保留 VCD status，HCM 顯示時轉標準狀態 |
 | Allocation Extension Input / Result | 不適用 | 功能畫面差異 | VCD Allocation 使用 HCM 共通 Project/System/Quota/Subnet |
-| Create VM Input / Result | 不適用 | 功能畫面差異 | 目前專案未接 VCD 建立 VM 能力 |
+| Create VM Input / Result | 不適用 | 功能畫面差異 | 依規格決議不允許由 HCM 建立 VCD VM |
 | VM Power Input / Result | 不適用 | 功能畫面差異 | 目前專案未接 VCD 開關機能力 |
 | VM Status Input / Result | 不適用 | 功能畫面差異 | 目前專案未接 VCD 單台 VM 狀態追蹤能力 |
 
@@ -77,7 +77,7 @@ VCD Connection 可使用三種授權方式：Basic、Token、Service Account。S
 | Cloud Settings | Provider 授權差異區 | Service Account 顯示 user code / verification URI | 授權狀態 pending / authorized / error | 可啟動與檢查授權 | token / password 必須遮罩 |
 | Cloud Settings | 同步資料 Wizard | Pool 為 VDC；Template 為 vApp Template | 同步 Pool、Network、Template、VM | 可同步資料 | Security Group 不適用 |
 | Allocation Management | Shared Allocation 表單 | 使用共通欄位 | Project、System、Quota、Subnet | 不建立 Provider 附加資源 | 不顯示 Provider Extension |
-| VM Management | VM 清單 | 顯示同步回來的 VCD VM | VCD status、IP、Template 來源 | 目前以檢視同步資料為主 | 目前不支援由 HCM 建立/開關 VCD VM |
+| VM Management | VM 清單 | 顯示同步回來的 VCD VM | VCD status、IP、Template 來源 | 目前以檢視同步資料為主 | 依規格決議不允許由 HCM 建立 VCD VM，亦不支援開關機 |
 
 ### 4.1 Provider 授權差異區詳情
 
@@ -576,7 +576,7 @@ Accept: application/*+xml;version=39.1
 
 | 項目 | 說明 |
 | --- | --- |
-| VCD 建立 VM | 目前專案未接 VCD instantiate vApp，文件不列為支援 |
+| VCD 建立 VM | 依規格決議不允許由 HCM 建立 VCD VM（不走 instantiate vApp） |
 | VCD 開關機 | 目前專案未接 VCD power action，文件不列為支援 |
 | Security Group | 目前 VCD 不同步為 HCM Security Group |
 | CPU Core 換算 | VCD 原始 CPU 為 MHz；同步時可優先取回 `VCpuInMhz2` 作為每 core MHz 預設值，若來源缺值再由管理者手動調整 |

@@ -25,16 +25,16 @@ HCM 中的 Cloud / Provider ID 可以是業務命名，例如 `cht-harvester`；
 
 | 02 規範掛載點 | Harvester 是否支援 | Harvester 文件章節 | 標準輸入 | 標準輸出 | 外部介接章節 | 影響的 HCM 資料 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Provider 授權 | 支援 | Auth 與連線設定 | Connection Auth Input | Auth Result | 授權/登入 | Cloud Connection |
-| 同步資源池 | 支援 | 外部 API 上下行與範例 | Sync Pools Input | Pool Sync Result | 同步 Pool | Pool |
-| 同步網路 | 支援 | 外部 API 上下行與範例 | Sync Network Input | Network Sync Result | 同步 Network | Subnet |
-| 同步 VM 規格來源 | 支援 | Image Catalog 映射、功能畫面差異 | Sync VM Catalog Input | VM Catalog Result | 同步 Image | Pool Image Catalog |
-| 同步 VM 清單 | 支援 | VM 映射、VM 狀態映射 | Sync VM Inventory Input | VM Inventory Result | 同步 VM 清單 | VM |
-| Allocation 附加資源 | 支援 | 功能畫面差異、Namespace 狀態映射 | Allocation Extension Input | Allocation Extension Result | Allocation 附加資源：Namespace | Allocation |
-| 建立 VM | 支援 | 功能畫面差異、VM 映射 | Create VM Input | Create VM Result | 建立 VM | VM |
-| VM 開機 | 支援 | VM 狀態映射 | VM Power Input | VM Power Result | VM 開機 / 關機 | VM |
-| VM 關機 | 支援 | VM 狀態映射 | VM Power Input | VM Power Result | VM 開機 / 關機 | VM |
-| VM 狀態追蹤 | 支援 | VM 映射、VM 狀態映射 | VM Status Input | VM Status Result | VM 狀態追蹤 | VM |
+| Provider 授權 | 支援 | Auth 與連線設定 | Connection Auth Input | Auth Result | 5.1 授權/登入 | Cloud Connection |
+| 同步資源池 | 支援 | 外部 API 上下行與範例 | Sync Pools Input | Pool Sync Result | 5.2 同步 Pool | Pool |
+| 同步網路 | 支援 | 外部 API 上下行與範例 | Sync Network Input | Network Sync Result | 5.3 同步 Network | Subnet |
+| 同步 VM 規格來源 | 支援 | Image Catalog 映射、功能畫面差異 | Sync VM Catalog Input | VM Catalog Result | 5.4 同步 Image | Pool Image Catalog |
+| 同步 VM 清單 | 支援 | VM 映射、VM 狀態映射 | Sync VM Inventory Input | VM Inventory Result | 5.7 同步 VM 清單 | VM |
+| Allocation 附加資源 | 支援 | 功能畫面差異、Namespace 狀態映射 | Allocation Extension Input | Allocation Extension Result | 5.5 Allocation 附加資源：Namespace | Allocation |
+| 建立 VM | 支援 | 功能畫面差異、VM 映射 | Create VM Input | Create VM Result | 5.6 建立 VM | VM |
+| VM 開機 | 支援 | VM 狀態映射 | VM Power Input | VM Power Result | 5.9 VM 開機 / 關機 | VM |
+| VM 關機 | 支援 | VM 狀態映射 | VM Power Input | VM Power Result | 5.9 VM 開機 / 關機 | VM |
+| VM 狀態追蹤 | 支援 | VM 映射、VM 狀態映射 | VM Status Input | VM Status Result | 5.8 VM 狀態追蹤 | VM |
 
 ### 2.2 標準輸入/輸出落地表
 
@@ -279,7 +279,7 @@ Authorization: Bearer <masked>
 | `gateway` | route / IPPool / ipam gateway | 依優先序 route -> IPPool -> ipam；無值時推導或留空 |
 | `vlan_id` | network.harvesterhci.io/vlan-id label | VLAN 網路時填入 |
 | `owner_pool_ids` | Cluster 層級 | Harvester 不區分 Pool，所有 Network 可被全 Cluster 使用 |
-| `ref.id` | `network_id`（= metadata.name，僅 name，不含 namespace） | 重複同步識別既有 Subnet；namespace/name 在 `cloud_ref`，`ref.id` 只存 name |
+| `ref.id` | `network_id`（= metadata.name，僅 name，不含 namespace） | 重複同步識別既有 Subnet；若需要 namespace/name 請放在 `ref.path` 等擴充欄位 |
 | `ref.name` | metadata.name | 備援識別 |
 | `ref.subnet_idx` | NetworkAttachmentDefinition 陣列 index（0-based） | 第一筆為 0；多網路時遞增 |
 | `ref.owner_ref` | 不寫入（undefined） | Harvester driver 不設定 owner_ref；pool 歸屬由 pool_ref_ids 決定 |
@@ -450,7 +450,7 @@ Content-Type: application/json
 
 #### 5.6.2 掛載點輸入
 
-| HCM 輸入 | 用途 | Harvester 轉換 |
+| 標準輸入欄位(Create VM Input) | 用途 | Harvester 轉換 |
 | --- | --- | --- |
 | Allocation namespace | VM 所在 namespace | URL path `{namespace}`、metadata.namespace |
 | VM name | VM 名稱 | metadata.name、hostname、PVC/Secret 名稱前綴 |
@@ -459,7 +459,7 @@ Content-Type: application/json
 | CPU | VM CPU | `spec.template.spec.domain.cpu.cores` |
 | Memory | VM Memory | `spec.template.spec.domain.memory.guest` 與 resource limits/requests |
 | Disk size | root disk 大小 | PVC `resources.requests.storage` |
-| Subnet cloud_ref | VM network | `multus.networkName` |
+| Subnet ref.id | VM network | `multus.networkName` |
 | Static IP | VM 固定 IP | cloud-init networkdata 與 VM annotation |
 
 #### 5.6.3 上下行範例
@@ -493,7 +493,7 @@ Content-Type: application/json
   "spec": {
     "accessModes": ["ReadWriteMany"],
     "volumeMode": "Block",
-    "storageClassName": "longhorn",
+    "storageClassName": "longhorn-image-fkx9g",
     "resources": {
       "requests": {
         "storage": "100Gi"
@@ -755,7 +755,7 @@ Authorization: Bearer <masked>
 | `nics` | `spec.template.spec.networks` + `status.interfaces[]` | 需合併 network 名稱與 IP |
 | `disks` | `spec.template.spec.domain.devices.disks` | provider 支援程度不同 |
 | `tags` | `metadata.labels` | 用於歸屬與篩選 |
-| `ref.id` | `namespace/name`（= `vm.cloud_ref`） | 重複同步識別既有 VM；避免重複建立 |
+| `ref.id` | `namespace/name` | 重複同步識別既有 VM；避免重複建立 |
 | `ref.name` | `metadata.name` | 備援識別 |
 | `ref.namespace` | `metadata.namespace` | Harvester 特有；後續開關機 API 需要 namespace |
 | `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 VM |
