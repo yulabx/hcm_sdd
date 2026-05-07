@@ -19,18 +19,18 @@ HCM 中的 Cloud / Provider ID 可以是業務命名；Driver ID 固定為 `vmwa
 
 ### 2.1 掛載點對照表
 
-| 02 規範掛載點 | VCD 是否支援 | VCD 文件章節 | 標準輸入 | 標準輸出 | 外部 API 章節 | 影響的 HCM 資料 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Provider 授權 | 支援 | Auth 與連線設定 | Connection Auth Input | Auth Result | 授權/登入 | Cloud Connection |
-| 同步資源池 | 支援 | VDC / Pool 映射 | Sync Pools Input | Pool Sync Result | 同步 VDC / Pool | Pool |
-| 同步網路 | 支援 | Network / Subnet 映射 | Sync Network Input | Network Sync Result | 同步 Network | Subnet |
-| 同步 VM 規格來源 | 支援 | Template Catalog 映射 | Sync VM Catalog Input | VM Catalog Result | 同步 vApp Template | Pool VM Catalog |
-| 同步 VM 清單 | 支援 | VM 映射、狀態映射 | Sync VM Inventory Input | VM Inventory Result | 同步 VM 清單 | VM |
-| Allocation 附加資源 | 不支援 | 功能畫面差異 | Allocation Extension Input | Allocation Extension Result | 不支援 | 無 |
-| 建立 VM | 不支援 | 功能畫面差異 | Create VM Input | Create VM Result | 不支援 | 無 |
-| VM 開機 | 不支援 | 功能畫面差異 | VM Power Input | VM Power Result | 不支援 | 無 |
-| VM 關機 | 不支援 | 功能畫面差異 | VM Power Input | VM Power Result | 不支援 | 無 |
-| VM 狀態追蹤 | 不支援 | 功能畫面差異 | VM Status Input | VM Status Result | 不支援 | 無 |
+| 02 規範掛載點 | VCD 是否支援 | 標準輸入 | 標準輸出 | 外部介接章節 | 影響的 HCM 資料 |
+| --- | --- | --- | --- | --- | --- |
+| Provider 授權 | 支援 | Connection Auth Input | Auth Result | 授權/登入 | Cloud Connection |
+| 同步資源池 | 支援 | Sync Pools Input | Pool Sync Result | 同步 VDC / Pool | Pool |
+| 同步網路 | 支援 | Sync Network Input | Network Sync Result | 同步 Network | Subnet |
+| 同步 VM 規格來源 | 支援 | Sync VM Catalog Input | VM Catalog Result | 同步 vApp Template | Pool VM Catalog |
+| 同步 VM 清單 | 支援 | Sync VM Inventory Input | VM Inventory Result | 同步 VM 清單 | VM |
+| Allocation 附加資源 | 不支援 | Allocation Extension Input | Allocation Extension Result | 不支援 | 無 |
+| 建立 VM | 不支援 | Create VM Input | Create VM Result | 不支援 | 無 |
+| VM 開機 | 不支援 | VM Power Input | VM Power Result | 不支援 | 無 |
+| VM 關機 | 不支援 | VM Power Input | VM Power Result | 不支援 | 無 |
+| VM 狀態追蹤 | 不支援 | VM Status Input | VM Status Result | 不支援 | 無 |
 
 ### 2.2 標準輸入/輸出落地表
 
@@ -55,6 +55,8 @@ HCM 中的 Cloud / Provider ID 可以是業務命名；Driver ID 固定為 `vmwa
 
 VCD Connection 可使用三種授權方式：Basic、Token、Service Account。Service Account 會有外部互動授權流程，需在 Cloud Settings 的 Provider 授權差異區呈現 user code 與 verification URI。
 
+授權畫面的顯示規則、按鈕行為與狀態轉換，統一定義於 `4.1 Provider 授權差異區詳情`。
+
 | 欄位 | 業務意義 | 必填 | 範例 | 備註 |
 | --- | --- | --- | --- | --- |
 | Cloud | 選擇 VCD Provider | 是 | VCD |
@@ -76,6 +78,127 @@ VCD Connection 可使用三種授權方式：Basic、Token、Service Account。S
 | Cloud Settings | 同步資料 Wizard | Pool 為 VDC；Template 為 vApp Template | 同步 Pool、Network、Template、VM | 可同步資料 | Security Group 不適用 |
 | Allocation Management | Shared Allocation 表單 | 使用共通欄位 | Project、System、Quota、Subnet | 不建立 Provider 附加資源 | 不顯示 Provider Extension |
 | VM Management | VM 清單 | 顯示同步回來的 VCD VM | VCD status、IP、Template 來源 | 目前以檢視同步資料為主 | 目前不支援由 HCM 建立/開關 VCD VM |
+
+### 4.1 Provider 授權差異區詳情
+
+本節補齊 `12_Cloud_Settings.md` 的 `3.4 Provider 授權差異區` 在 VCD Provider 的具體畫面規格。Cloud Settings 只定義共通入口；VCD 的欄位、狀態與操作以本節為準。
+
+| Auth Type | 顯示欄位/區塊 | 主要操作 | 畫面輸出 | 備註 |
+| --- | --- | --- | --- | --- |
+| `basic` | 不顯示授權差異區 | 儲存 Connection 後可直接進同步 | 無額外授權畫面 | 授權結果由 `5.1.1 Basic 登入` 實際 API 回應決定 |
+| `token` | 不顯示授權差異區 | 儲存 Connection 後可直接進同步 | 無額外授權畫面 | API Token 在 Connection 顯示時需遮罩 |
+| `service_account` | 顯示授權差異區 | `啟動授權`、`檢查授權狀態`、`重新授權` | `user_code`、`verification_uri`、`expires_in`、`poll_interval_sec`、`auth_status`、`auth_message` | 授權區塊僅在 service account 顯示 |
+
+#### 4.1.1 basic
+
+**畫面示意圖**
+
+```text
++--------------------------------------------------------------+
+| Cloud Settings / 編輯 Connection                              |
++--------------------------------------------------------------+
+| Provider: VCD                                                  |
+| Label:    VCD Taipei                                           |
+| Base URL: https://vcd.example.com                             |
+| Auth Type: basic                                               |
+| Username: admin@example.com                                    |
+| Password: ********                                             |
++--------------------------------------------------------------+
+| Provider 授權差異區：不顯示                                      |
+| 說明：儲存後直接使用 5.1.1 驗證授權                               |
++--------------------------------------------------------------+
+```
+
+| Event/動作 | 觸發 | 成功結果 | 失敗結果 |
+| --- | --- | --- | --- |
+| 儲存 Connection | 點擊儲存 | 進入可同步狀態 | 顯示授權失敗訊息（依 5.1.1 回應） |
+
+#### 4.1.2 token
+
+**畫面示意圖**
+
+```text
++--------------------------------------------------------------+
+| Cloud Settings / 編輯 Connection                              |
++--------------------------------------------------------------+
+| Provider: VCD                                                  |
+| Label:    VCD Taipei                                           |
+| Base URL: https://vcd.example.com                             |
+| Auth Type: token                                               |
+| API Token: ********                                            |
++--------------------------------------------------------------+
+| Provider 授權差異區：不顯示                                      |
+| 說明：儲存後直接進同步流程                                       |
++--------------------------------------------------------------+
+```
+
+| Event/動作 | 觸發 | 成功結果 | 失敗結果 |
+| --- | --- | --- | --- |
+| 儲存 Connection | 點擊儲存 | 進入可同步狀態 | 顯示 token 無效或授權失敗訊息 |
+
+#### 4.1.3 service_account
+
+**畫面示意圖**
+
+```text
++--------------------------------------------------------------+
+| Cloud Settings / 編輯 Connection                              |
++--------------------------------------------------------------+
+| Provider: VCD                                                  |
+| Label:    VCD Taipei                                           |
+| Base URL: https://vcd.example.com                             |
+| Auth Type: service_account                                     |
+| Tenant Name: tenant-a                                          |
+| Client ID: hcm-client                                          |
+| Refresh Token: ********                                        |
++--------------------------------------------------------------+
+| Provider 授權差異區                                             |
+| Status: pending                                                |
+| User Code: ABCD-EFGH                                           |
+| Verification URI: https://vcd.example.com/oauth/.../activate  |
+| Expires In: 600 sec                                            |
+| Poll Interval: 5 sec                                           |
+| Message: Waiting user authorization...                         |
+| [啟動授權] [檢查授權狀態] [重新授權]                            |
++--------------------------------------------------------------+
+```
+
+**流程示意圖（service_account）**
+
+```text
+[Connection 儲存完成]
+  |
+  v
+[按下 啟動授權]
+  |
+  v
+[pending]
+  - 顯示 user_code / verification_uri
+  - 使用者到外部頁面完成授權
+  |
+  v
+[按下 檢查授權狀態]
+   |----------------------------|
+   | token 取得成功             | token 未完成或失敗
+   v                            v
+[authorized]                 [pending 或 error]
+  - 可進同步                     - 顯示 auth_message
+  - 可重新授權                   - 可重試或重新授權
+```
+
+| 畫面狀態 | 觸發條件 | 顯示內容 | 可用操作 |
+| --- | --- | --- | --- |
+| `pending` | 呼叫 `5.1.2 Service Account 啟動授權` 成功 | 顯示 `user_code`、`verification_uri`、到期秒數與輪詢間隔 | 檢查授權狀態、重新授權 |
+| `authorized` | 呼叫 `5.1.3 Service Account 取得 / 更新 Token` 成功 | 顯示授權成功訊息與最後更新時間（若有） | 重新授權 |
+| `error` | device authorization / token API 失敗或逾時 | 顯示可讀 `auth_message` 錯誤訊息 | 重試、重新授權 |
+
+| Event/動作 | API 對應 | 成功後畫面結果 | 失敗後畫面結果 |
+| --- | --- | --- | --- |
+| 啟動授權 | `POST /oauth/tenant/{tenantName}/device_authorization` | 進入 `pending`，顯示 `user_code` 與 `verification_uri` | 顯示 `error` 與錯誤訊息 |
+| 檢查授權狀態 | `POST /oauth/tenant/{tenantName}/token`（device code poll） | 成功時進入 `authorized`，更新 token 摘要 | 維持 `pending` 或轉 `error`（依 OAuth error） |
+| 重新授權 | 重新呼叫 device authorization | 重設授權碼與到期時間，狀態回 `pending` | 顯示 `error` 與錯誤訊息 |
+
+安全要求：`password`、`api token`、`refresh token` 任何時候不得明文顯示；畫面僅可顯示遮罩值。
 
 ## 5. 外部介接上下行與範例
 

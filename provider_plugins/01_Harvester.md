@@ -23,7 +23,7 @@ HCM 中的 Cloud / Provider ID 可以是業務命名，例如 `cht-harvester`；
 
 ### 2.1 掛載點對照表
 
-| 02 規範掛載點 | Harvester 是否支援 | Harvester 文件章節 | 標準輸入 | 標準輸出 | 外部 API 章節 | 影響的 HCM 資料 |
+| 02 規範掛載點 | Harvester 是否支援 | Harvester 文件章節 | 標準輸入 | 標準輸出 | 外部介接章節 | 影響的 HCM 資料 |
 | --- | --- | --- | --- | --- | --- | --- |
 | Provider 授權 | 支援 | Auth 與連線設定 | Connection Auth Input | Auth Result | 授權/登入 | Cloud Connection |
 | 同步資源池 | 支援 | 外部 API 上下行與範例 | Sync Pools Input | Pool Sync Result | 同步 Pool | Pool |
@@ -61,6 +61,8 @@ HCM 中的 Cloud / Provider ID 可以是業務命名，例如 `cht-harvester`；
 
 Harvester 連線以 Cluster API Endpoint 與 API Token 為主。若 Harvester 使用自簽憑證，Cloud Connection 可提供跳過 TLS 驗證的業務選項，讓管理者能先完成串接。
 
+授權畫面的顯示規則與事件行為，統一定義於 `4.1 Provider 授權差異區詳情`。
+
 ### 3.1 Connection 表單欄位
 
 | 欄位 | 業務意義 | 必填 | 範例 | 備註 |
@@ -97,6 +99,38 @@ Harvester 的差異集中在 Cloud Settings 的連線/同步、Allocation Manage
 | VM Management | VM 建立表單 | 顯示 Image 選項 | Image 來源為 Pool Image Catalog | 可建立 VM | Image 若為 legacy 需提示是否可用 |
 | VM Management | Network / Security Group | 不顯示 Harvester 原生 Security Group 選項 | Network 來自 Harvester Subnet | 可選 IP 模式與網路 | Harvester 不支援 AWS Security Group |
 | VM Management | VM 操作 | 支援 Start / Stop / 狀態追蹤 | instanceId 需帶 namespace/name | 可開機、關機、查詢狀態 | 操作結果以 KubeVirt 狀態回寫 HCM |
+
+### 4.1 Provider 授權差異區詳情
+
+| Auth Type | 顯示欄位/區塊 | 主要操作 | 畫面輸出 | 備註 |
+| --- | --- | --- | --- | --- |
+| `api_token` | 不顯示授權差異區 | 儲存 Connection 後直接進同步或 VM 操作 | 無額外授權畫面 | Token 可用性由後續 API 結果判斷 |
+
+#### 4.1.1 api_token
+
+**畫面示意圖**
+
+```text
++--------------------------------------------------------------+
+| Cloud Settings / 編輯 Connection                              |
++--------------------------------------------------------------+
+| Provider: Harvester                                            |
+| Label: Taipei Harvester                                        |
+| Base URL: https://harvester.example.com                        |
+| Namespace Filter: prod-app                                     |
+| TLS Skip Verify: Yes                                           |
+| Auth Type: api_token                                           |
+| API Token: ********                                            |
++--------------------------------------------------------------+
+| Provider 授權差異區：不顯示                                      |
+| 說明：儲存後直接使用 Bearer Token 呼叫 Harvester API            |
++--------------------------------------------------------------+
+```
+
+| Event/動作 | 觸發 | 成功結果 | 失敗結果 |
+| --- | --- | --- | --- |
+| 儲存 Connection | 點擊儲存 | 進入可同步與可操作狀態 | 顯示連線建立失敗訊息 |
+| 執行同步或 VM 操作 | Wizard 同步或 VM 動作觸發 API 呼叫 | API 回應成功，授權視為可用 | 顯示授權失敗或 token 無效訊息 |
 
 ## 5. 外部介接上下行與範例
 
