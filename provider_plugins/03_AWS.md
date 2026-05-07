@@ -233,6 +233,17 @@ AWS 不需要登入換 token。HCM 以 Access Key / Secret / Region 建立 AWS c
 }
 ```
 
+| 標準輸出欄位（Pool Sync Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `provider_pool_id` | `VpcId` | 必填；AWS VPC ID |
+| `name` | `Tags[Name]` 或 `VpcId` | 優先取 Name tag，無值時用 VPC ID |
+| `cidr` | `CidrBlock` | VPC CIDR block；無計費相關的容量值 |
+| `status` | VPC 可用狀態 | 一般為 available；其他狀態視為無效 |
+| `ref.id` | `VpcId` | 重複同步識別既有 Pool |
+| `ref.name` | Name tag 或 `VpcId` | 備援識別 |
+| `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Pool；prune 時依此清理 |
+| `ref.sync_meta.cpu_mhz_per_core` | 不寫入 | AWS 無 MHz 概念 |
+
 ##### 7.1.3.2 同步 Subnet
 
 | 項目 | 說明 |
@@ -283,6 +294,22 @@ AWS 不需要登入換 token。HCM 以 Access Key / Secret / Region 建立 AWS c
 }
 ```
 
+| 標準輸出欄位（Network Sync Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `provider_network_id` | `SubnetId` | 必填；AWS Subnet ID |
+| `name` | `Tags[Name]` 或 `SubnetId` | 優先取 Name tag，無值時用 Subnet ID |
+| `cidr` | `CidrBlock` | Subnet CIDR；用於 IP 分配判斷 |
+| `gateway` | `CidrBlock` 推導 | AWS 不提供 Gateway IP，可由 CIDR 推導或留空 |
+| `owner_pool_ids` | 所屬 `VpcId` | 必填；Subnet 隸屬於特定 VPC |
+| `status` | `State` | available 轉 active；其他狀態為 inactive |
+| `ref.id` | `SubnetId` | 重複同步識別既有 Subnet |
+| `ref.name` | Name tag 或 `SubnetId` | 備援識別 |
+| `ref.subnet_idx` | `subnet_idx`（固定為 `1`） | AWS driver 目前固定回傳 1 |
+| `ref.owner_ref` | 不寫入（`undefined`） | AWS driver 未提供 owner_ref；同步時寫入空值 |
+| `ref.owner_type` | 不寫入（`undefined`） | AWS driver 未提供 owner_type；同步時寫入空值 |
+| `ref.pool_ref_ids` | `[VpcId]` | 追蹤 Subnet 隸屬 Pool |
+| `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Subnet |
+
 ##### 7.1.3.3 同步 Security Group
 
 | 項目 | 說明 |
@@ -324,6 +351,15 @@ AWS 不需要登入換 token。HCM 以 Access Key / Secret / Region 建立 AWS c
   "description": "Allow web traffic"
 }
 ```
+
+| 標準輸出欄位（Security Group Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `security_group_id` | `GroupId` | 必填；AWS Security Group ID |
+| `name` | `GroupName` | 必填；Security Group 名稱 |
+| `description` | `Description` | Security Group 說明 |
+| `owner_pool_ids` | 所屬 `VpcId` | 必填；Security Group 隸屬於特定 VPC |
+| `ref.id` | `GroupId` | 重複同步識別既有 Security Group |
+| `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Security Group |
 
 ##### 7.1.3.4 同步 AMI / Image
 
@@ -413,6 +449,13 @@ AWS 不需要登入換 token。HCM 以 Access Key / Secret / Region 建立 AWS c
   }
 ]
 ```
+
+| 標準輸出欄位（VM Catalog Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `template_id` | `ImageId` | 必填；AWS AMI ID |
+| `name` | `Name` tag 或 `ImageId` | 優先取 Name tag，無值時用 AMI ID |
+| `root_device_name` | `RootDeviceName` | 建立 VM 時 root disk 的設備名稱 |
+| `is_quick_start` | Owner 與 name pattern | Quick start 類型標記；無值為自有 AMI |
 
 ##### 7.1.3.5 建立 VM
 
@@ -597,6 +640,23 @@ VM 清單同步會並行查詢 VPC 內 EC2 與 Subnet，用 SubnetId 對應 Subn
   "disks": []
 }
 ```
+
+| 標準輸出欄位（VM Inventory Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `provider_vm_id` | `InstanceId` | 必填；作為 provider 端 VM 識別，後續開關機與追蹤使用 |
+| `name` | `Tags[Key=Name].Value` | 必填；無 Name tag 時可回退 `InstanceId` |
+| `status` | `State.Name` | 必填；需先轉成 HCM 標準狀態 |
+| `cpu` | `InstanceTypes[].VCpuInfo.DefaultVCpus` | 由 `DescribeInstanceTypesCommand` 補齊 |
+| `memory_gb` | `InstanceTypes[].MemoryInfo.SizeInMiB` | `MiB / 1024` 轉 GB |
+| `disk_gb` | EBS volume 資訊（本流程未解析） | 現行同步可為 `null` |
+| `ip` | `PrivateIpAddress` | 主要 IP；可由 NIC 清單補強 |
+| `hostname` | `PrivateDnsName` | 可選 |
+| `nics` | `NetworkInterfaces[]` | 解析 Subnet、IP、Security Group |
+| `disks` | EBS block device mappings（本流程未展開） | 現行同步可為空陣列 |
+| `tags` | `Tags[]` | 用於歸屬與篩選 |
+| `ref.id` | `InstanceId` | 重複同步識別既有 VM；TERMINATED 狀態也以此觸發刪除 |
+| `ref.name` | Name tag 或 `InstanceId` | 備援識別 |
+| `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 VM |
 
 ##### 7.1.3.7 VM 狀態追蹤
 

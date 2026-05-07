@@ -233,22 +233,24 @@ Authorization: Bearer <masked>
 
 #### 7.2.4 HCM 轉換
 
-| HCM 欄位 | 來源 API | 來源欄位 | 換算公式 |
+| 標準輸出欄位（Pool Sync Result） | Provider 欄位 | 來源 API | 換算公式 / 重要備註 |
 | --- | --- | --- | --- |
-| `cpu_total` | nodes | `status.allocatable.cpu`（無則 `capacity.cpu`） | `sum(parseCpuQuantity(cpu))` |
-| `cpu_provisioned` | nodes | `annotations['management.cattle.io/pod-requests'].cpu` | `sum(parseCpuQuantity(podRequests.cpu))` |
-| `mem_total_gb` | nodes | `status.allocatable.memory`（無則 `capacity.memory`） | `sum(parseMemoryToGb(memory))` |
-| `mem_provisioned_gb` | nodes | `annotations['management.cattle.io/pod-requests'].memory` | `sum(parseMemoryToGb(podRequests.memory))` |
-| `disk_total_tb` | Longhorn nodes + overcommit settings | `storageMaximum`、`storageReserved`、`overcommit` | `sum( max(0, storageMaximum - storageReserved) × (overcommit/100) )` 轉 TB |
-| `disk_provisioned_tb` | Longhorn nodes | `storageScheduled` | `sum(storageScheduled)` 轉 TB |
+| `provider_pool_id` | Cluster 名稱 | — | 必填；Harvester 以整個 Cluster 作為一個 Pool |
+| `cpu_total` | `status.allocatable.cpu`（無則 `capacity.cpu`） | nodes | `sum(parseCpuQuantity(cpu))`；單位 Core |
+| `cpu_provisioned` | `annotations['management.cattle.io/pod-requests'].cpu` | nodes | `sum(parseCpuQuantity(podRequests.cpu))`；已分配給 Pod 的 CPU |
+| `memory_total_gb` | `status.allocatable.memory`（無則 `capacity.memory`） | nodes | `sum(parseMemoryToGb(memory))`；由 Ki/Mi/Gi 換算為 GB |
+| `memory_provisioned_gb` | `annotations['management.cattle.io/pod-requests'].memory` | nodes | `sum(parseMemoryToGb(podRequests.memory))`；已分配給 Pod 的 Memory |
+| `disk_total_gb` | `storageMaximum`、`storageReserved`、overcommit% | Longhorn nodes + overcommit settings | `sum( max(0, storageMaximum - storageReserved) × (overcommit/100) )` 轉 GB；overcommit 預設 200 |
+| `disk_provisioned_gb` | `storageScheduled` | Longhorn nodes | `sum(storageScheduled)` 轉 GB；不受 overcommit 影響 |
+| `ref.id` | Cluster 名稱 | — | 重複同步識別既有 Pool |
+| `ref.name` | Cluster 名稱 | — | 備援識別 |
+| `ref.cloud_connection_id` | Connection ID | — | 隔離不同連線的 Pool |
+| `ref.sync_meta` | 來自 Harvester pool 同步摘要（如 `cpu_total_cores`、`memory_total_gb`、`storage_total_gb`、`storage_allocated_gb`） | — | 會寫入；僅 `cpu_mhz_per_core` / `cpu_total_mhz` / `cpu_used_mhz` 不寫入（或清為 undefined） |
 
-**Overcommit 規則：**
-- overcommit 只影響 `disk_total_tb`，不影響 `disk_provisioned_tb`
-- 若 settings API 全部 fallback 失敗，預設 overcommit = 200
-
-**呼叫策略：**
+**注意事項：**
 - nodes、Longhorn nodes、overcommit settings 三類 API 並行呼叫
 - Longhorn nodes 與 overcommit settings 各自依序 fallback，第一個成功即採用
+- 若 overcommit settings API 全部 fallback 失敗，預設 overcommit = 200
 
 ### 7.3 同步 Network
 
@@ -304,6 +306,22 @@ Authorization: Bearer <masked>
 | route / IPPool / ipam gateway | Subnet gateway | 依同樣優先序取值 |
 | network.harvesterhci.io/type / vlan-id | Subnet name 補充資訊 | 顯示 VLAN 或 Bridge |
 
+| 標準輸出欄位（Network Sync Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `provider_network_id` | metadata.namespace + metadata.name | 必填；格式 `namespace/name` 作為唯一識別 |
+| `name` | metadata.name | 必填；網路名稱 |
+| `cidr` | route annotation / IPPool / spec.config | 優先序見轉換規則；無 CIDR 時可留空 |
+| `gateway` | route / IPPool / ipam gateway | Gateway IP；無值時推導或留空 |
+| `vlan_id` | network.harvesterhci.io/vlan-id label | VLAN 網路時填入 |
+| `owner_pool_ids` | Cluster 層級 | Harvester 不區分 Pool，所有 Network 可被全 Cluster 使用 |
+| `ref.id` | `network_id`（= metadata.name，僅 name，不含 namespace） | 重複同步識別既有 Subnet；namespace/name 在 `cloud_ref`，`ref.id` 只存 name |
+| `ref.name` | metadata.name | 備援識別 |
+| `ref.subnet_idx` | NetworkAttachmentDefinition 陣列 index（0-based） | 第一筆為 0；多網路時遞增 |
+| `ref.owner_ref` | 不寫入（undefined） | Harvester driver 不設定 owner_ref；pool 歸屬由 pool_ref_ids 決定 |
+| `ref.owner_type` | `unknown` | Harvester driver 回傳 unknown；pool 歸屬走 `targetPoolRefIds = [vdcRef.id]` 路徑 |
+| `ref.pool_ref_ids` | Pool ref.id（= poolIdFromBaseUrl） | 追蹤 Subnet 隸屬 Pool |
+| `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Subnet |
+
 ### 7.4 同步 Image
 
 同步 Image 時，HCM 查詢 Harvester VirtualMachineImage，寫入 Pool 的 Image Catalog。
@@ -346,14 +364,12 @@ Authorization: Bearer <masked>
 }
 ```
 
-#### 7.4.4 HCM 轉換
-
-| Provider 來源 | HCM 欄位 | 轉換規則 |
+| 標準輸出欄位（VM Catalog Result） | Provider 欄位 | 重要備註 |
 | --- | --- | --- |
-| metadata.namespace + metadata.name | Image id | 轉成 `namespace/name` |
-| spec.displayName | Image label | 優先使用；無值時用 metadata.name |
-| status.storageClassName | Image storageClassName | 原值保留，建立 root disk PVC 時使用 |
-| harvesterhci.io/image-type | Image imageType / is_legacy | ISO 或無 StorageClass 標記為 legacy |
+| `template_id` | metadata.namespace + metadata.name | 必填；格式 `namespace/name` 作為唯一識別 |
+| `name` | spec.displayName 或 metadata.name | 必填；前端顯示名稱 |
+| `storage_class` | status.storageClassName | 建立 VM 的 root disk PVC 時使用 |
+| `image_type` | harvesterhci.io/image-type label | ISO / raw 等；無值時由 StorageClass 推導 |
 
 ### 7.5 Allocation 附加資源：Namespace
 
@@ -673,6 +689,24 @@ Authorization: Bearer <masked>
   ]
 }
 ```
+
+| 標準輸出欄位（VM Inventory Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `provider_vm_id` | `metadata.namespace` + `/` + `metadata.name` | 必填；作為 provider 端 VM 識別，後續開關機與狀態追蹤使用 |
+| `name` | `metadata.name` | 必填；直接作為 VM 顯示名稱 |
+| `status` | `status.printableStatus`（VM / VMI） | 必填；需先轉成 HCM 標準狀態 |
+| `cpu` | `spec.template.spec.domain.cpu.cores` | Core / vCPU |
+| `memory_gb` | `spec.template.spec.domain.memory.guest` | 需由 Gi/Mi 等單位換算為 GB |
+| `disk_gb` | `spec.template.spec.domain.devices.disks` + volume/PVC 容量資訊 | 若來源未提供完整容量可留空 |
+| `ip` | `status.interfaces[].ipAddress`（VMI） | 主要 IP；通常取第一張主要 NIC |
+| `hostname` | VM 名稱或 cloud-init 設定值 | 無獨立欄位時可回退 `name` |
+| `nics` | `spec.template.spec.networks` + `status.interfaces[]` | 需合併 network 名稱與 IP |
+| `disks` | `spec.template.spec.domain.devices.disks` | provider 支援程度不同 |
+| `tags` | `metadata.labels` | 用於歸屬與篩選 |
+| `ref.id` | `namespace/name`（= `vm.cloud_ref`） | 重複同步識別既有 VM；避免重複建立 |
+| `ref.name` | `metadata.name` | 備援識別 |
+| `ref.namespace` | `metadata.namespace` | Harvester 特有；後續開關機 API 需要 namespace |
+| `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 VM |
 
 ### 7.8 VM 狀態追蹤
 

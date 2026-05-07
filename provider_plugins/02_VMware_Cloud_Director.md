@@ -161,6 +161,12 @@ Authorization: Basic <masked>
 Accept: application/json;version=39.1
 ```
 
+| 標準輸出欄位（Auth Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `access_token` | session response header / token 欄位 | 必填；後續 API Bearer token |
+| `auth_status` | HTTP status + token 是否取得 | 成功為 `authorized`，失敗為 `error` |
+| `auth_message` | 錯誤訊息（若有） | 失敗時回寫可讀訊息 |
+
 #### 7.1.2 Service Account 啟動授權
 
 | 項目 | 說明 |
@@ -188,6 +194,15 @@ client_id=hcm-client
 }
 ```
 
+| 標準輸出欄位（Auth Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `device_code` | `device_code` | 啟動授權輪詢使用 |
+| `user_code` | `user_code` | 顯示於畫面讓使用者輸入 |
+| `verification_uri` | `verification_uri` | 顯示於畫面讓使用者開啟 |
+| `expires_in` | `expires_in` | 授權碼有效時間 |
+| `poll_interval_sec` | `interval` | 輪詢間隔秒數 |
+| `auth_status` | 固定回寫 pending | 等待使用者完成授權 |
+
 #### 7.1.3 Service Account 取得 / 更新 Token
 
 | 項目 | 說明 |
@@ -204,6 +219,13 @@ Content-Type: application/x-www-form-urlencoded
 
 grant_type=refresh_token&refresh_token=<masked>&client_id=hcm-client
 ```
+
+| 標準輸出欄位（Auth Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `access_token` | `access_token` | 必填；本次同步授權使用 |
+| `refresh_token` | `refresh_token` | 若回傳新值需更新 Connection |
+| `auth_status` | token API 成功/失敗 | 成功為 `authorized`，失敗為 `error` |
+| `auth_message` | OAuth error response（若有） | 失敗時回寫可讀訊息 |
 
 ### 7.2 同步 VDC / Pool
 
@@ -230,6 +252,23 @@ Accept: application/*+xml;version=39.1
 </Vdc>
 ```
 
+| 標準輸出欄位（Pool Sync Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `provider_pool_id` | `values[].id`（VDC id） | 必填；Pool provider 識別 |
+| `name` | `values[].name` | 必填；Pool 顯示名稱 |
+| `cpu_total` | `ComputeCapacity.Cpu.Limit` | 來源單位常為 MHz |
+| `cpu_used` | `ComputeCapacity.Cpu.Used` | 與 total 同單位 |
+| `memory_total_gb` | `ComputeCapacity.Memory.Limit` | `MB / 1024` |
+| `memory_used_gb` | `ComputeCapacity.Memory.Used` | `MB / 1024` |
+| `disk_total_gb` | `VdcStorageProfiles[].Limit` | 依 `Units` 換算 |
+| `disk_used_gb` | `VdcStorageProfiles[].StorageUsedMB` | `MB / 1024` |
+| `ref.id` | `values[].id` URN 最後段（VDC UUID） | 重複同步識別既有 Pool；`findPoolByRef` 以此比對 |
+| `ref.name` | `values[].name` | 首次同步建立 Pool 名稱的備援來源 |
+| `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Pool；prune 時依此清理過期資料 |
+| `ref.description` | VDC 描述（若有） | 保存 provider 原始描述 |
+| `ref.sync_meta.cpu_mhz_per_core` | MHz → Core 換算基準 | Harvester / vSphere 模式不寫 |
+| `ref.sync_meta.cpu_total_mhz` | `ComputeCapacity.Cpu.Limit` 原始 MHz | 保留原始值供未來換算調整 |
+
 ### 7.3 同步 Network
 
 | 順序 | Method | URL | 用途 | 上行 | 下行取用欄位 |
@@ -255,6 +294,22 @@ Accept: application/*+xml;version=39.1
 }
 ```
 
+| 標準輸出欄位（Network Sync Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `provider_network_id` | `values[].id` | 必填；Subnet provider 識別來源 |
+| `name` | `values[].name` | 必填；Network 顯示名稱 |
+| `owner_pool_id` | `ownerRef.id` 或 vdcGroup 成員 `vdcRef.id` | 用於關聯可用 Pool |
+| `cidr` | `subnets.values[].gateway` + `prefixLength` | 由 gateway/prefix 組 CIDR |
+| `gateway` | `subnets.values[].gateway` | 主要 gateway |
+| `status` | `values[].status` | `REALIZED` -> active；其他 inactive |
+| `ref.id` | `values[].id` URN 最後段（Network UUID） | 重複同步識別既有 Subnet |
+| `ref.name` | `values[].name` | 備援識別 |
+| `ref.subnet_idx` | subnet 序號（多 subnet 網路時遞增） | 同一 Network 多個 subnet 的區分 |
+| `ref.owner_ref` | `ownerRef.id`（VDC 或 vdcGroup URN） | 判定 Subnet 可被哪些 Pool 使用的依據 |
+| `ref.owner_type` | `vdc` 或 `vdcGroup` | 決定 pool_ref_ids 的展開方式 |
+| `ref.pool_ref_ids` | VDC UUID 清單（由 ownerRef 解析） | 追蹤 Subnet 隸屬 Pool；prune 時依此清理 |
+| `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Subnet |
+
 ### 7.4 同步 vApp Template
 
 | 順序 | Method | URL | 用途 | 上行 | 下行取用欄位 |
@@ -272,23 +327,73 @@ Accept: application/*+xml;version=39.1
 </QueryResultRecords>
 ```
 
+| 標準輸出欄位（VM Catalog Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `template_id` | `VAppTemplateRecord.href` 最後段 | 必填；Template provider 識別 |
+| `name` | `VAppTemplateRecord.name` | 必填；顯示名稱 |
+| `default_cpu` | `VAppTemplateRecord.numberOfCpus` | 轉整數 |
+| `default_memory_gb` | `VAppTemplateRecord.memoryAllocationMB` | `MB / 1024` |
+| `default_disk_gb` | `VAppTemplateRecord.storageKB` | `KB / 1024 / 1024` |
+
 ### 7.5 同步 VM 清單
+
+同步 VM 清單採二步驟 API 呼叫：
+1. **Step 1** - Query 取得 VM 清單摘要（VMRecord）
+2. **Step 2** - 依 VMRecord href 逐筆取得 VM 明細（Vm detail XML）
 
 | 順序 | Method | URL | 用途 | 上行 | 下行取用欄位 |
 | --- | --- | --- | --- | --- | --- |
 | 1 | GET | `{baseUrl}/api/query?type=vm&page={page}&pageSize=25&format=records&filter=vdc=={vdcId}` | 查詢 VM record | 無 body | `VMRecord.href`、`name`、`status`、`ipAddress`、`numberOfCpus`、`memoryMB`、`totalStorageAllocatedMb` |
 | 2 | GET | VMRecord href | 取得 VM detail | 無 body | `ComputerName`、`NetworkConnectionSection`、disk `Item` |
 
+#### Step 1：Query VM Records
+
+**用途：** 分頁查詢指定 VDC 的所有 VM record
+
+**上行 Request：** 無 request body；参数由 URL query string 提供
+
+**下行 Response 範例：**
+
 ```xml
-<VMRecord
-  name="app-01"
-  href="https://vcd.example.com/api/vApp/vm-001"
-  status="POWERED_ON"
-  ipAddress="10.1.0.10"
-  numberOfCpus="4"
-  memoryMB="16384"
-  totalStorageAllocatedMb="102400" />
+<QueryResultRecords total="47" pageCount="2" page="1" pageSize="25">
+
+  <VMRecord
+    href="https://vcd.example.com/api/vApp/vm-550e8400-e29b-41d4-a716-446655440010"
+    name="web-server-01"
+    ipAddress="10.100.1.10"
+    status="POWERED_ON"
+    numberOfCpus="4"
+    memoryMB="8192"
+    totalStorageAllocatedMb="102400"
+    isVAppTemplate="false"
+    isDeployed="true"/>
+
+  <VMRecord
+    href="https://vcd.example.com/api/vApp/vm-550e8400-e29b-41d4-a716-446655440011"
+    name="app-db-01"
+    ipAddress="10.100.1.20"
+    status="POWERED_ON"
+    numberOfCpus="8"
+    memoryMB="16384"
+    totalStorageAllocatedMb="204800"
+    isVAppTemplate="false"
+    isDeployed="true"/>
+
+</QueryResultRecords>
 ```
+
+**重要說明：**
+- `<QueryResultRecords>` 為外層包裝，包含分頁資訊（`total`、`pageCount`、`page`、`pageSize`）
+- 若 `total > pageSize`，需逐頁迴圈查詢
+- HCM 需迭代所有 VMRecord，取得 `href` 後進行 Step 2 詳細查詢
+
+#### Step 2：Fetch VM Detail
+
+**用途：** 逐筆取得 VM 的完整明細，包括 NIC 與 Disk 詳情
+
+**上行 Request：** 無 request body；URL 為上一步 `VMRecord.href`
+
+**下行 Response 範例：**
 
 ```xml
 <Vm name="app-01">
@@ -302,6 +407,23 @@ Accept: application/*+xml;version=39.1
   </NetworkConnectionSection>
 </Vm>
 ```
+
+| 標準輸出欄位（VM Inventory Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `provider_vm_id` | `VMRecord.href` 最後段 | 必填；作為 provider 端 VM 識別，後續開關機與追蹤使用 |
+| `name` | `VMRecord.name` | 必填；直接作為 VM 顯示名稱 |
+| `status` | `VMRecord.status` | 必填；需先轉成 HCM 標準狀態（如 `POWERED_ON` -> `running`） |
+| `cpu` | `VMRecord.numberOfCpus` | 轉整數；單位為 Core / vCPU |
+| `memory_gb` | `VMRecord.memoryMB` | `MB / 1024` 轉 GB |
+| `disk_gb` | `VMRecord.totalStorageAllocatedMb` | `MB / 1024` 轉 GB |
+| `ip` | `VMRecord.ipAddress` | 主要 IP；若明細有 NIC IP 可覆蓋 |
+| `hostname` | `GuestCustomizationSection.ComputerName` | 明細 API 補值；無值可回退 `name` |
+| `nics` | `NetworkConnectionSection.NetworkConnection` | 解析 `network` 與 `IpAddress` |
+| `disks` | disk `Item`（`ResourceType=17`） | 依 `AllocationUnits` 換算容量 |
+| `tags` | VCD metadata / custom properties（若有） | 無值可留空 |
+| `ref.id` | `VMRecord.href` 最後段（VM UUID） | 重複同步識別既有 VM；避免重複建立 |
+| `ref.name` | `VMRecord.name` | 備援識別 |
+| `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 VM |
 
 ## 8. 單位換算與狀態映射
 

@@ -183,6 +183,23 @@ Authorization: Bearer <masked>
 }
 ```
 
+| 標準輸出欄位（Pool Sync Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `provider_pool_id` | `cluster_ref` | 必填；vSphere Cluster reference |
+| `name` | `name` | 必填；Cluster 名稱 |
+| `cpu_total` | `total_cpu_mhz` | 單位為 MHz；需視 HCM 設定決定是否轉 Core |
+| `cpu_provisioned` | `used_cpu_mhz` | 單位為 MHz；已使用的 CPU |
+| `memory_total_gb` | `total_memory_gib` | 單位 GiB；視為 GB 顯示 |
+| `memory_provisioned_gb` | `used_memory_gib` | 單位 GiB；已使用的 Memory |
+| `disk_total_gb` | `total_storage_gib` | 單位 GiB；視為 GB 顯示 |
+| `disk_provisioned_gb` | `total_storage_gib - free_storage_gib` | 已使用的 Storage 容量 |
+| `ref.id` | `cluster_ref`（如 `domain-c1`） | 重複同步識別既有 Pool |
+| `ref.name` | Cluster 名稱 | 備援識別 |
+| `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Pool |
+| `ref.sync_meta.cpu_mhz_per_core` | MHz → Core 換算基準 | vSphere 使用 MHz；換算 Core 顯示時需要此值 |
+| `ref.sync_meta.cpu_total_mhz` | `total_cpu_mhz` | 保留原始 MHz 值供換算調整 |
+| `ref.sync_meta.cpu_used_mhz` | `used_cpu_mhz` | 保留原始 MHz 值供換算調整 |
+
 ### 7.3 同步 Network
 
 | 順序 | Method | URL | 用途 | 上行 | 下行取用欄位 |
@@ -201,6 +218,20 @@ Authorization: Bearer <masked>
   ]
 }
 ```
+
+| 標準輸出欄位（Network Sync Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `provider_network_id` | `network_ref` | 必填；vSphere Network reference |
+| `name` | `name` | 必填；Network 名稱（通常為 IP pattern，如 `192.168.1.X`） |
+| `cidr` | `name` 推導 | 由 Network 名稱推導 CIDR；如 `192.168.1.X` 推導 `192.168.1.0/24` |
+| `gateway` | `name` 推導 | 由 CIDR 推導 gateway；如 `192.168.1.0/24` 推導 `.254` |
+| `owner_pool_ids` | `cluster_refs[]` | 必填；Network 隸屬的 Cluster 清單 |
+| `ref.id` | `network_ref`（如 `network-100`） | 重複同步識別既有 Subnet |
+| `ref.name` | Network 名稱 | 備援識別 |
+| `ref.subnet_idx` | `1`（固定） | vsphere driver 固定回傳 1；vSphere Network 為單一 subnet |
+| `ref.owner_ref` | 不寫入（undefined） | vsphere driver 不設定 owner_ref；cluster 歸屬由 pool_ref_ids 決定 |
+| `ref.pool_ref_ids` | `cluster_refs[]` | 追蹤 Network 隸屬的所有 Cluster；透過 targetPoolRefIds 路徑寫入 |
+| `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Subnet |
 
 ### 7.4 同步 Template
 
@@ -221,6 +252,14 @@ Authorization: Bearer <masked>
   ]
 }
 ```
+
+| 標準輸出欄位（VM Catalog Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `template_id` | `vm_ref` | 必填；vSphere Template reference |
+| `name` | `name` | 必填；Template 名稱 |
+| `default_cpu` | `cpu_count` | Template 預設 vCPU 數 |
+| `default_memory_gb` | `memory_gib` | 單位 GiB；視為 GB 顯示 |
+| `default_disk_gb` | `disk_total_gib` | 單位 GiB；視為 GB 顯示 |
 
 ### 7.5 同步 VM 清單
 
@@ -259,6 +298,23 @@ Authorization: Bearer <masked>
   ]
 }
 ```
+
+| 標準輸出欄位（VM Inventory Result） | Provider 欄位 | 重要備註 |
+| --- | --- | --- |
+| `provider_vm_id` | `records[].vm_ref` | 必填；作為 provider 端 VM 識別，後續追蹤使用 |
+| `name` | `records[].name` | 必填；直接作為 VM 顯示名稱 |
+| `status` | `records[].power_state` | 必填；需先轉成 HCM 標準狀態（如 `poweredOn` -> `running`） |
+| `cpu` | `records[].cpu_count` | Core / vCPU |
+| `memory_gb` | `records[].memory_gib` | GiB 視為 GB 顯示 |
+| `disk_gb` | `records[].disk_total_gib` | GiB 視為 GB 顯示 |
+| `ip` | `records[].primary_ip` | 主要 IP |
+| `hostname` | `records[].name` 或 guest hostname（若有） | 無獨立 hostname 欄位時可回退名稱 |
+| `nics` | `records[].nics` | 解析 network 名稱與 `ipv4s` |
+| `disks` | `records[].disks` | 取各 disk 容量 |
+| `tags` | vSphere custom attributes（若有） | 無值可留空 |
+| `ref.id` | `vm_ref`（如 `vm-200`） | 重複同步識別既有 VM；避免重複建立 |
+| `ref.name` | `name` | 備援識別 |
+| `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 VM |
 
 ## 8. 單位換算與狀態映射
 
