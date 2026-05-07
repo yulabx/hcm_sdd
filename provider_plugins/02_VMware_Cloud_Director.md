@@ -238,18 +238,46 @@ grant_type=refresh_token&refresh_token=<masked>&client_id=hcm-client
 | 3 | GET | VDC storage profile href | 取得 StorageProfile 容量 | 無 body | `Limit`、`StorageUsedMB`、`Units` |
 
 ```http
-GET {baseUrl}/api/vdc/vdc-001
+GET {baseUrl}/api/vdc/f40b1346-2451-47ab-946b-7d3d9c77b900
 Authorization: Bearer <masked>
 Accept: application/*+xml;version=39.1
 ```
 
+**下行 Response 範例（精簡版，取重要欄位）：**
+
 ```xml
-<Vdc name="Prod VDC">
-  <ComputeCapacity>
-    <Cpu><Units>MHz</Units><Limit>80000</Limit><Used>24000</Used></Cpu>
-    <Memory><Units>MB</Units><Limit>524288</Limit><Used>131072</Used></Memory>
-  </ComputeCapacity>
-</Vdc>
+<?xml version="1.0" encoding="UTF-8"?>
+<ns2:Vdc xmlns:ns2="http://www.vmware.com/vcloud/v1.5" 
+         name="VDC5502279600021" 
+         id="urn:vcloud:vdc:f40b1346-2451-47ab-946b-7d3d9c77b900"
+         href="https://sddc.hicloud.hinet.net/api/vdc/f40b1346-2451-47ab-946b-7d3d9c77b900"
+         status="1">
+  <ns2:Description>驗證區</ns2:Description>
+  
+  <ns2:ComputeCapacity>
+    <ns2:Cpu>
+      <ns2:Units>MHz</ns2:Units>
+      <ns2:Limit>250000</ns2:Limit>
+      <ns2:Used>216000</ns2:Used>
+    </ns2:Cpu>
+    <ns2:Memory>
+      <ns2:Units>MB</ns2:Units>
+      <ns2:Limit>512000</ns2:Limit>
+      <ns2:Used>503808</ns2:Used>
+    </ns2:Memory>
+  </ns2:ComputeCapacity>
+
+  <ns2:VdcStorageProfiles>
+    <ns2:VdcStorageProfile href="https://sddc.hicloud.hinet.net/api/vdcStorageProfile/862e9b33-b6f3-4d7f-85e6-1e3e134f567b"
+                           id="urn:vcloud:vdcstorageProfile:862e9b33-b6f3-4d7f-85e6-1e3e134f567b"
+                           name="SDDC-SAS-Storage(HN55022796)"/>
+    <ns2:VdcStorageProfile href="https://sddc.hicloud.hinet.net/api/vdcStorageProfile/45791192-870a-4b9d-8965-5c4fb42a796c"
+                           id="urn:vcloud:vdcstorageProfile:45791192-870a-4b9d-8965-5c4fb42a796c"
+                           name="SDDC-SAS-Storage(HN55022796)UAT-1"/>
+  </ns2:VdcStorageProfiles>
+
+  <ns2:VCpuInMhz2>2000</ns2:VCpuInMhz2>
+</ns2:Vdc>
 ```
 
 | 標準輸出欄位（Pool Sync Result） | Provider 欄位 | 重要備註 |
@@ -266,7 +294,7 @@ Accept: application/*+xml;version=39.1
 | `ref.name` | `values[].name` | 首次同步建立 Pool 名稱的備援來源 |
 | `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Pool；prune 時依此清理過期資料 |
 | `ref.description` | VDC 描述（若有） | 保存 provider 原始描述 |
-| `ref.sync_meta.cpu_mhz_per_core` | MHz → Core 換算基準 | Harvester / vSphere 模式不寫 |
+| `ref.sync_meta.cpu_mhz_per_core` | `values[].VCpuInMhz2`（若有） | MHz → Core 換算基準；同步時可帶入預設，無值時再由管理者補填 |
 | `ref.sync_meta.cpu_total_mhz` | `ComputeCapacity.Cpu.Limit` 原始 MHz | 保留原始值供未來換算調整 |
 
 ### 7.3 同步 Network
@@ -444,4 +472,4 @@ Accept: application/*+xml;version=39.1
 | VCD 建立 VM | 目前專案未接 VCD instantiate vApp，文件不列為支援 |
 | VCD 開關機 | 目前專案未接 VCD power action，文件不列為支援 |
 | Security Group | 目前 VCD 不同步為 HCM Security Group |
-| CPU Core 換算 | VCD 原始 CPU 為 MHz，業務顯示 Core 時需確認每 core MHz 基準 |
+| CPU Core 換算 | VCD 原始 CPU 為 MHz；同步時可優先取回 `VCpuInMhz2` 作為每 core MHz 預設值，若來源缺值再由管理者手動調整 |
