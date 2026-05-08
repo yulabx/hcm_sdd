@@ -4,7 +4,7 @@
 
 vSphere Provider Plugin 用於透過既有 vSphere 介接 API 取得 Cluster、Network、Template 與 VM inventory，轉成 HCM 標準資料供 Cloud Settings 與 VM Management 查詢使用。
 
-HCM 中的 Cloud / Provider ID 可以是業務命名；Driver ID 固定為 `vsphere`，用來套用本文件定義的 Provider Plugin 規格。
+HCM 中的 Cloud / Provider ID 可以 be 業務命名；Driver ID 固定為 `vsphere`，用來套用本文件定義的 Provider Plugin 規格。
 
 | 項目 | 說明 |
 | --- | --- |
@@ -371,3 +371,123 @@ Accept: application/json
 | Security Group | vSphere 目前不支援 HCM Security Group 同步 |
 | Network CIDR | CIDR 目前可能由名稱推導，推導不到時需管理者補齊 |
 | Storage total | 介接資料可能未提供完整 total_storage_gib，需以來源可用資料呈現 |
+
+## 8. 附錄：vSphere Inventory 介接服務規格 (Integration SDK Specification)
+
+vSphere 介接服務負責將 vCenter 原始的 SOAP 介面轉化為 HCM 易於處理的 JSON REST API。本章節定義其 API 呼叫範例、底層 SDK 介接邏輯與資料映射規格。
+
+### 8.1 介接呼叫範例 (Integration API Examples)
+
+本節展示 HCM Backend 呼叫介接服務取得四類核心資源的標準 JSON 範例。這是開發者對接時的主要參考依據。
+
+#### 8.1.1 同步資源池 (Clusters)
+- **Endpoint**: `GET /clusters`
+- **Response Record:**
+```json
+{
+  "cluster_ref": "domain-c1",
+  "name": "Cluster-Prod",
+  "total_cpu_mhz": 80000,
+  "used_cpu_mhz": 24000,
+  "total_memory_gib": 512,
+  "used_memory_gib": 200,
+  "total_storage_gib": 2048,
+  "free_storage_gib": 1024
+}
+```
+
+#### 8.1.2 同步網路 (Networks)
+- **Endpoint**: `GET /networks`
+- **Response Record:**
+```json
+{
+  "network_ref": "network-100",
+  "name": "192.168.1.X",
+  "type": "DistributedVirtualPortgroup",
+  "vlan": 101,
+  "cluster_refs": ["domain-c1"]
+}
+```
+
+#### 8.1.3 同步虛擬機 (VMs)
+- **Endpoint**: `GET /vms`
+- **Response Record:**
+```json
+{
+  "vm_ref": "vm-200",
+  "name": "web-server-01",
+  "power_state": "poweredOn",
+  "cpu_count": 4,
+  "memory_gib": 8,
+  "primary_ip": "192.168.1.100",
+  "nics": [{ "network_name": "192.168.1.X", "ipv4s": ["192.168.1.100"] }]
+}
+```
+
+#### 8.1.4 同步範本 (Templates)
+- **Endpoint**: `GET /templates`
+- **Response Record:**
+```json
+{
+  "vm_ref": "vm-450",
+  "name": "ubuntu-22-template",
+  "cpu_count": 2,
+  "memory_gib": 2,
+  "disk_total_gib": 50
+}
+```
+
+### 8.2 連線生命週期與會話管理 (Connection & Session - SDK)
+
+介接服務底層透過 `pyVmomi` 的 `SmartConnect` 與 vCenter 建立持久連線。
+
+| 階段 | 實作邏輯 | 說明 |
+|---|---|---|
+| **身分認證** | **SOAP 帳密認證** | SDK 使用 `VCENTER_USER` 與 `VCENTER_PASSWORD` 向 vCenter 進行身分驗證。 |
+| **初始化** | `SmartConnect(host, user, pwd, port, sslContext)` | 建立全域會話物件 (`ServiceInstance`)，作為所有檢索動作的入口。 |
+| **安全性** | `ssl._create_unverified_context()` | 若 `VCENTER_INSECURE` 為 true，則忽略 SSL 憑證驗證（適用於測試環境）。 |
+| **自動清理** | `atexit.register(Disconnect, si)` | 服務關閉時自動向 vCenter 登出並釋放 Session 資源。 |
+
+### 8.3 資料檢索與映射規格 (Retrieval & Mapping - SDK Logic)
+
+本節定義介接服務如何將 vSphere 原始物件屬性檢索並轉換為上述 API 欄位。
+
+#### 8.3.1 檢索模式
+為確保效能，採用 **ContainerView** 模式進行批次檢索：
+- **指令**：`content.viewManager.CreateContainerView(rootFolder, [vim.Type], recursive=True)`。
+- **目標**：`ClusterComputeResource` (資源池)、`Network` (網路)、`VirtualMachine` (VM/Template)。
+
+#### 8.3.2 Cluster (資源池) 映射
+- **關鍵邏輯**：
+    - **Storage**：遍歷 `cluster.datastore` 成員，手動加總 `capacity` 與 `freeSpace`。
+
+| API 欄位 | SDK 屬性路徑 | 說明 |
+|---|---|---|
+| `cluster_ref` | `_moId` | vSphere 內部唯一識別碼 |
+| `total_cpu_mhz` | `summary.totalCpu` | 叢集總 CPU 頻率 |
+| `used_cpu_mhz` | `summary.usageSummary.cpuUsageMHz` | 需啟用 DRS 始可精確統計 |
+
+#### 8.3.3 Network (網路) 映射
+- **關鍵邏輯**：
+    - **叢集歸屬**：遍歷 `host` 參照並透過 `host.parent` 向上溯源至 `vim.ClusterComputeResource`。
+
+| API 欄位 | SDK 屬性路徑 | 說明 |
+|---|---|---|
+| `network_ref` | `_moId` | 網路物件識別碼 |
+| `vlan` | `config.defaultPortConfig.vlan.vlanId` | 僅分散式交換機支援 |
+
+#### 8.3.4 VM & Template (虛擬機與範本) 映射
+- **關鍵邏輯**：
+    - **類型區分**：依據 `config.template` (Boolean) 分流至 `/templates` (True) 或 `/vms` (False)。
+    - **IP 取得**：讀取 `guest.ipAddress` (需安裝 VMware Tools)。
+
+| API 欄位 | SDK 屬性路徑 | 說明 |
+|---|---|---|
+| `vm_ref` | `_moId` | 虛擬機識別碼 |
+| `is_template` | `config.template` | **辨識關鍵**：True 為範本，False 為一般 VM |
+
+### 8.4 業務約束與限制 (Constraints)
+
+- **VMware Tools 依賴**：虛擬機的詳細 IP 資訊高度依賴於 Guest OS 內安裝的 VMware Tools。
+- **DRS 依賴**：資源池的「已使用資源」指標需在 vCenter 啟用 DRS 才能精確統計。
+- **儲存總量限制**：由於 vSphere 未提供 Cluster 級別的總儲存容量，同步結果為物理加總。
