@@ -213,8 +213,8 @@ Authorization: Bearer <masked>
 | `memory_provisioned_gb` | `annotations['management.cattle.io/pod-requests'].memory` | 來源 nodes；`sum(parseMemoryToGb(podRequests.memory))`；已分配給 Pod 的 Memory |
 | `disk_total_gb` | `storageMaximum`、`storageReserved`、overcommit% | 來源 Longhorn nodes + overcommit settings；`sum(max(0, storageMaximum - storageReserved) x (overcommit/100))` 轉 GB；overcommit 預設 200 |
 | `disk_provisioned_gb` | `storageScheduled` | 來源 Longhorn nodes；`sum(storageScheduled)` 轉 GB；不受 overcommit 影響 |
-| `ref.id` | `metadata.id` | 重複同步識別既有 Pool；預設使用 metadata.id |
-| `ref.name` | `metadata.name` | 備援識別；預設使用 metadata.name |
+| `ref.id` | `metadata.id` | 重複同步識別既有 Pool；使用 metadata.id |
+| `ref.name` | `metadata.name` | 備援識別；使用 metadata.name |
 | `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Pool |
 | `ref.sync_meta` | 來自 Harvester pool 同步摘要（如 `cpu_total_cores`、`memory_total_gb`、`storage_total_gb`、`storage_allocated_gb`） | 會寫入；僅 `cpu_mhz_per_core` / `cpu_total_mhz` / `cpu_used_mhz` 不寫入（或清為 undefined） |
 
