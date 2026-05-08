@@ -23,10 +23,15 @@ HCM（Hybrid Cloud Management）Portal 的系統設計文件（SDD）。
    Backend API 合約。Frontend 與 Backend 之間的 HTTP endpoint 清單，標示每支 API 是否進入 Provider Plugin 掛點。
 
 5. **功能文件**（依你負責的模組選讀）
+   - [10_Resource_Overview.md](./10_Resource_Overview.md) — 資源概念與架構
+   - [11_Project_Dimension.md](./11_Project_Dimension.md) — Project 組織維度
    - [12_Cloud_Settings.md](./12_Cloud_Settings.md) — Provider 建立、Connection 設定、資源同步
+   - [13_Pool_Settings.md](./13_Pool_Settings.md) — Pool 配置管理
+   - [14_Subnet_Settings.md](./14_Subnet_Settings.md) — Subnet 配置管理
    - [15_Apply_Wizard.md](./15_Apply_Wizard.md) — 專案資源申請流程（4 步驟 Wizard）
    - [16_Allocation_Management.md](./16_Allocation_Management.md) — 申請審核與 Allocation 分配
    - [17_VM_Management.md](./17_VM_Management.md) — VM 建立與管理
+   - [18_User_and_Role.md](./18_User_and_Role.md) — 使用者與角色管理
 
 6. **[provider_plugins/](./provider_plugins/)**
    各 Provider 的實作差異文件，描述外部 API 上下行、欄位轉換與畫面差異。若你負責特定 Provider 的整合，閱讀對應文件前請先讀完 `02_Provider_Plugin_Model.md`。
@@ -38,7 +43,8 @@ HCM（Hybrid Cloud Management）Portal 的系統設計文件（SDD）。
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  功能畫面 / Events                                                    │
-│  12_Cloud_Settings · 15_Apply_Wizard · 16_Allocation · 17_VM_Mgmt   │
+│  10_Resource · 11_Project · 12_Cloud_Settings · 13_Pool · 14_Subnet │
+│  15_Apply_Wizard · 16_Allocation · 17_VM_Mgmt · 18_User_and_Role    │
 └────────────────────────────┬────────────────────────────────────────┘
                              │ HTTP API
 ┌────────────────────────────▼────────────────────────────────────────┐
@@ -72,11 +78,12 @@ HCM（Hybrid Cloud Management）Portal 的系統設計文件（SDD）。
 
 | 角色 | 主要閱讀文件 |
 |------|------------|
-| 產品 / BA | `00`、`01`、功能文件 |
-| 前端開發 | `00`、`03`、功能文件 |
+| 產品 / BA | `00`、`01`、`10`、`11`、功能文件 |
+| 前端開發 | `00`、`03`、`10`、`11`、功能文件 |
 | 後端開發 | `00`、`01`、`02`、`03` |
 | Provider 整合 | `02`、對應 `provider_plugins/` |
-| QA | `01`（狀態與資料規則）、功能文件（Event 規格） |
+| QA | `01`（狀態與資料規則）、`10`（資源概念）、功能文件（Event 規格） |
+| 運維 / 系統管理員 | `10`、`11`、`13`、`14`、`18` |
 
 ---
 
