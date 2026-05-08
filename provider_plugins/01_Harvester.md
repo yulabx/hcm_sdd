@@ -201,27 +201,93 @@ Authorization: Bearer <masked>
 }
 ```
 
+**上行 Request 範例（Longhorn Nodes）：**
+
+```http
+GET {baseUrl}/apis/longhorn.io/v1beta2/nodes
+Authorization: Bearer <masked>
+```
+
+**下行 Response 範例：**
+
+```json
+{
+  "items": [
+    {
+      "metadata": {
+        "name": "node-01"
+      },
+      "spec": {
+        "disks": {
+          "disk-1": {
+            "storageReserved": 5368709120
+          }
+        }
+      },
+      "status": {
+        "diskStatus": {
+          "disk-1": {
+            "storageMaximum": 107374182400,
+            "storageScheduled": 21474836480
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+**上行 Request 範例（Overcommit Settings）：**
+
+```http
+GET {baseUrl}/apis/harvesterhci.io/v1beta1/settings/overcommit-config
+Authorization: Bearer <masked>
+```
+
+**下行 Response 範例：**
+
+```json
+{
+  "default": "{\"storage\":200}",
+  "value": "{\"storage\":250}"
+}
+```
+
+或（Longhorn 替代方式）：
+
+```json
+{
+  "default": "200",
+  "value": "250"
+}
+```
+
 #### 5.2.3 掛載點輸出
 
 | 標準輸出欄位（Pool Sync Result） | Provider 欄位 | 重要備註 |
 | --- | --- | --- |
 | `provider_pool_id` | Base URL host hash | 必填；Harvester 以整個 Cluster 作為一個 Pool；由 Connection Base URL 推導，格式 `harvester-cluster-{host-hash}` |
 | `name` | Base URL host | 必填；Pool 名稱；由 Connection Base URL host 提取 |
-| `cpu_total` | `status.allocatable.cpu`（無則 `capacity.cpu`） | 來源 nodes；`sum(parseCpuQuantity(cpu))`；單位 Core |
-| `cpu_provisioned` | `annotations['management.cattle.io/pod-requests'].cpu` | 來源 nodes；`sum(parseCpuQuantity(podRequests.cpu))`；已分配給 Pod 的 CPU |
-| `memory_total_gb` | `status.allocatable.memory`（無則 `capacity.memory`） | 來源 nodes；`sum(parseMemoryToGb(memory))`；由 Ki/Mi/Gi 換算為 GB |
-| `memory_provisioned_gb` | `annotations['management.cattle.io/pod-requests'].memory` | 來源 nodes；`sum(parseMemoryToGb(podRequests.memory))`；已分配給 Pod 的 Memory |
-| `disk_total_gb` | `storageMaximum`、`storageReserved`、overcommit% | 來源 Longhorn nodes + overcommit settings；`sum(max(0, storageMaximum - storageReserved) x (overcommit/100))` 轉 GB；overcommit 預設 200 |
-| `disk_provisioned_gb` | `storageScheduled` | 來源 Longhorn nodes；`sum(storageScheduled)` 轉 GB；不受 overcommit 影響 |
+| `cpu_total` | `status.allocatable.cpu`（無則 `capacity.cpu`）；原始單位：millicores（m 後綴）或 cores（無後綴） | 來源 nodes；無轉換，存儲原始值（保留 m 或數字）；單位 millicore 或 core |
+| `cpu_provisioned` | `annotations['management.cattle.io/pod-requests'].cpu`；原始單位：millicores 或 cores | 來源 nodes；無轉換，存儲原始值；單位 millicore 或 core |
+| `memory_total_gb` | `status.allocatable.memory`（無則 `capacity.memory`）；原始單位：Ki/Mi/Gi | 來源 nodes；無轉換，存儲原始值（保留 Ki/Mi/Gi 後綴）；單位 Kubernetes 記憶體表示法 |
+| `memory_provisioned_gb` | `annotations['management.cattle.io/pod-requests'].memory`；原始單位：Ki/Mi/Gi | 來源 nodes；無轉換，存儲原始值；單位 Kubernetes 記憶體表示法 |
+| `disk_total_gb` | Longhorn nodes: `status.diskStatus[*].storageMaximum`、`spec.disks[*].storageReserved`（單位：bytes）；overcommit: HarvesterSetting JSON `storage` 值（單位：百分比） | 來源 Longhorn nodes + overcommit settings；無轉換，存儲原始值；計算公式 `sum(max(0, storageMaximum - storageReserved) x (overcommit/100))` 結果為 bytes |
+| `disk_provisioned_gb` | Longhorn nodes: `status.diskStatus[*].storageScheduled`（單位：bytes） | 來源 Longhorn nodes；無轉換，存儲原始值；單位 bytes |
 | `ref.id` | Base URL host hash | 重複同步識別既有 Pool；由 Connection Base URL 推導，格式 `harvester-cluster-{host-hash}` |
 | `ref.name` | Base URL host | 備援識別；由 Connection Base URL host 提取 |
 | `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Pool |
-| `ref.sync_meta` | 來自 Harvester pool 同步摘要（如 `cpu_total_cores`、`memory_total_gb`、`storage_total_gb`、`storage_allocated_gb`） | 會寫入；僅 `cpu_mhz_per_core` / `cpu_total_mhz` / `cpu_used_mhz` 不寫入（或清為 undefined） |
+| `ref.sync_meta` | Pool 同步摘要，單位遵循原始格式（CPU: millicore/core, Memory: Ki/Mi/Gi, Storage: bytes） | 存儲原始值；包含 `cpu_total`、`cpu_allocated`、`memory_total`、`memory_allocated`、`storage_maximum_bytes`、`storage_reserved_bytes`、`storage_scheduled_bytes`、`storage_overcommit_percentage`；不包含計算結果（GB、Core 轉換） |
 
 **注意事項：**
 - nodes、Longhorn nodes、overcommit settings 三類 API 並行呼叫
 - Longhorn nodes 與 overcommit settings 各自依序 fallback，第一個成功即採用
-- 若 overcommit settings API 全部 fallback 失敗，預設 overcommit = 200
+- Overcommit 設定來源 API（優先級順序）：
+  1. `/apis/harvesterhci.io/v1beta1/settings/overcommit-config` → 解析 JSON `{storage: <percentage>}`
+  2. `/v1/harvester/settings/overcommit-config` → 同上
+  3. `/apis/longhorn.io/v1beta2/namespaces/longhorn-system/settings/storage-over-provisioning-percentage` → 同上
+  4. `/apis/longhorn.io/v1beta1/namespaces/longhorn-system/settings/storage-over-provisioning-percentage` → 同上
+  5. 全部失敗：預設 overcommit = 200
 - Harvester 以整個 Cluster 作為單一 Pool，Pool 識別由 Connection 的 Base URL 決定
 
 ### 5.3 同步 Network
@@ -232,8 +298,8 @@ Authorization: Bearer <masked>
 
 | 順序 | Method | URL | 用途 | 上行 | 下行取用欄位 |
 | --- | --- | --- | --- | --- | --- |
-| 1 | GET | `{baseUrl}/apis/k8s.cni.cncf.io/v1/network-attachment-definitions` | 取得 Harvester 可用網路 | 無 body | `items[].metadata.namespace`、`name`、`annotations`、`labels`、`spec.config` |
-| 2 | GET | `{baseUrl}/apis/network.harvesterhci.io/v1beta1/ippools` | 取得網路對應 IPPool | 無 body | `items[].metadata.name`、`spec.ipv4Config.subnet`、`gateway` |
+| 1 | GET | `{baseUrl}/apis/k8s.cni.cncf.io/v1/network-attachment-definitions` | 取得 Harvester 可用網路 | 無 body | `items[].metadata.namespace`、`name`、`annotations['network.harvesterhci.io/route']`、`labels['network.harvesterhci.io/type']`、`labels['network.harvesterhci.io/vlan-id']`、`spec.config` |
+| 2 | GET | `{baseUrl}/apis/network.harvesterhci.io/v1beta1/ippools` | 取得網路對應 IPPool；用於補充 CIDR / Gateway | 無 body | `items[].metadata.name`、`spec.ipv4Config.subnet`、`spec.ipv4Config.gateway`、`spec.ipv4Config.serverIPAddr` |
 
 #### 5.3.2 上下行範例
 
@@ -269,14 +335,42 @@ Authorization: Bearer <masked>
 }
 ```
 
+**上行 Request 範例（IPPool）：**
+
+```http
+GET {baseUrl}/apis/network.harvesterhci.io/v1beta1/ippools
+Authorization: Bearer <masked>
+```
+
+**下行 Response 範例：**
+
+```json
+{
+  "items": [
+    {
+      "metadata": {
+        "name": "vlan100-pool"
+      },
+      "spec": {
+        "ipv4Config": {
+          "serverIPAddr": "10.1.0.254",
+          "subnet": "10.1.0.0/24",
+          "gateway": "10.1.0.1"
+        }
+      }
+    }
+  ]
+}
+```
+
 #### 5.3.3 掛載點輸出
 
 | 標準輸出欄位（Network Sync Result） | Provider 欄位 | 重要備註 |
 | --- | --- | --- |
 | `provider_network_id` | metadata.namespace + metadata.name | 必填；格式 `namespace/name` 作為唯一識別 |
 | `name` | metadata.name | 必填；網路名稱；可由 `network.harvesterhci.io/type` / `vlan-id` 補充顯示資訊 |
-| `cidr` | route annotation / IPPool / spec.config | 依優先序 route annotation -> IPPool -> spec.config；無 CIDR 時可留空 |
-| `gateway` | route / IPPool / ipam gateway | 依優先序 route -> IPPool -> ipam；無值時推導或留空 |
+| `cidr` | Priority 1: `annotations['network.harvesterhci.io/route']` 解析 JSON `{cidr: "..."}` | 依優先序取值；Priority 1 無值或解析失敗 → Priority 2 IPPool；都無值 → Priority 3 spec.config |
+| `gateway` | Priority 1: `annotations['network.harvesterhci.io/route']` 解析 JSON `{gateway: "..."}` | 依優先序取值；Priority 1 無值或解析失敗 → Priority 2 IPPool；都無值 → Priority 3 spec.config |
 | `vlan_id` | network.harvesterhci.io/vlan-id label | VLAN 網路時填入 |
 | `owner_pool_ids` | Cluster 層級 | Harvester 不區分 Pool，所有 Network 可被全 Cluster 使用 |
 | `ref.id` | `network_id`（= metadata.name，僅 name，不含 namespace） | 重複同步識別既有 Subnet；若需要 namespace/name 請放在 `ref.path` 等擴充欄位 |
@@ -286,6 +380,14 @@ Authorization: Bearer <masked>
 | `ref.owner_type` | `unknown` | Harvester driver 回傳 unknown；pool 歸屬走 `targetPoolRefIds = [vdcRef.id]` 路徑 |
 | `ref.pool_ref_ids` | Pool ref.id（= poolIdFromBaseUrl） | 追蹤 Subnet 隸屬 Pool |
 | `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Subnet |
+
+**注意事項：**
+- CIDR 與 Gateway 優先級詳解：
+  - **Priority 1**：Harvester route annotation `network.harvesterhci.io/route` → 解析 JSON `{cidr: "10.1.0.0/24", gateway: "10.1.0.1"}`
+  - **Priority 2**：IPPool `spec.ipv4Config.subnet` 與 `spec.ipv4Config.gateway`（Priority 1 無值時）；IPPool 與 NetworkAttachmentDefinition 的關聯以 metadata.name 匹配
+  - **Priority 3**：spec.config JSON `ipam.subnet` 與 `ipam.gateway`（Priority 1、2 均無值時）
+  - 若全部無值：CIDR 與 Gateway 皆可留空，無法選擇靜態 IP
+- provider_network_id 格式為 `{metadata.namespace}/{metadata.name}`，用於重複同步識別
 
 ### 5.4 同步 Image
 
@@ -336,9 +438,9 @@ Authorization: Bearer <masked>
 | 標準輸出欄位（VM Catalog Result） | Provider 欄位 | 重要備註 |
 | --- | --- | --- |
 | `template_id` | metadata.namespace + metadata.name | 必填；格式 `namespace/name` 作為唯一識別 |
-| `name` | spec.displayName 或 metadata.name | 必填；前端顯示名稱 |
-| `storage_class` | status.storageClassName | 建立 VM 的 root disk PVC 時使用 |
-| `image_type` | harvesterhci.io/image-type label | ISO / raw 等；無值時由 StorageClass 推導 |
+| `name` | spec.displayName 或 metadata.name | 必填；前端顯示名稱；優先使用 spec.displayName |
+| `storage_class` | status.storageClassName | 建立 VM 的 root disk PVC 時使用；若為空則在建立 VM 時補查 |
+| `image_type` | metadata.labels['harvesterhci.io/image-type'] | 必填；取值 `iso`、`raw` 等；若無值則存儲空字符串 |
 
 ### 5.5 Allocation 附加資源：Namespace
 
@@ -426,9 +528,9 @@ Content-Type: application/json
 
 | 標準輸出欄位（Allocation Extension Result） | Provider 欄位 | 重要備註 |
 | --- | --- | --- |
-| `namespace_status` | GET/POST/PUT 成功 | 成功時回寫 `ready` |
-| `namespace` | namespace 名稱 | 原值保留 |
-| `namespace_error` | Provider 錯誤訊息 | 儲存可讀錯誤摘要 |
+| `namespace_status` | namespace 建立/更新操作結果 | 成功時回寫 `ready`（GET/POST/PUT 成功）；失敗時回寫 `error` |
+| `namespace` | namespace 名稱 | 原值保留；與輸入相同 |
+| `namespace_error` | 失敗時的錯誤訊息 | 儲存可讀錯誤摘要；成功時為空 |
 
 ### 5.6 建立 VM
 
