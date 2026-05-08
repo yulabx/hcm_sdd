@@ -154,7 +154,7 @@ Connection 表單
 |---|---|---|---|
 | AWS | Access Key | Access Key ID、Secret Access Key、Region、Session Token | AWS provider 文件 |
 | VMware Cloud Director | Basic、Service Account、Token | username/password、client id、tenant、refresh token、device 授權流程 | VCD provider 文件 |
-| Harvester | API Token | API Token、Namespace Filter、TLS skip verify | Harvester provider 文件 |
+| Harvester | API Token | API Token、TLS skip verify | Harvester provider 文件 |
 | vSphere | Token | Token、endpoint | vSphere provider 文件 |
 
 **Event**
