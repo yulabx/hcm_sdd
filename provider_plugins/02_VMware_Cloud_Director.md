@@ -39,13 +39,13 @@ HCM 中的 Cloud / Provider ID 可以是業務命名；Driver ID 固定為 `vmwa
 | Connection Auth Input | Base URL、Basic、API Token、Service Account | Auth 與連線設定 | Service Account 需 tenant name、client id、device authorization 與 refresh token |
 | Auth Result | Access Token、授權狀態、必要時 refresh token 更新 | 授權/登入 | Service Account 可能先回 pending，再由 poll 完成 |
 | Sync Pools Input | Cloud Connection、VCD tenant scope | 同步 VDC / Pool | VCD 以 VDC 作為 HCM Pool |
-| Pool Sync Result | VDC ComputeCapacity、StorageProfile | VDC / Pool 映射 | CPU 原始單位常為 MHz；Memory / Storage 轉成 GB/TB |
+| Pool Sync Result | VDC ComputeCapacity、StorageProfile | VDC / Pool 映射 | 需對齊持久層基礎單位 (Bytes/Millicores) |
 | Sync Network Input | Cloud Connection、VDC pool id | 同步 Network | 讀取 Org VDC Network；若 owner 為 VDC 則可依 pool 過濾 |
 | Network Sync Result | Org VDC Network subnet values | Network / Subnet 映射 | Gateway + prefixLength 推導 CIDR |
 | Sync VM Catalog Input | Cloud Connection、VDC id | 同步 vApp Template | 以 Query API 的 vAppTemplate record 作為 VM 建立來源選項 |
-| VM Catalog Result | vApp Template | Template Catalog 映射 | HCM 顯示 template、default CPU、Memory、Disk |
+| VM Catalog Result | vApp Template | Template Catalog 映射 | HCM 顯示 template、default CPU、Memory、Disk (需對齊基礎單位) |
 | Sync VM Inventory Input | Cloud Connection、VDC id | 同步 VM 清單 | 以 Query API 列 VM，再讀 VM detail 補 NIC / Disk |
-| VM Inventory Result | VMRecord + VM detail XML | VM 映射 | VM 狀態保留 VCD status，HCM 顯示時轉標準狀態 |
+| VM Inventory Result | VMRecord + VM detail XML | VM 映射 | 規格需對齊持久層基礎單位 (Bytes/Millicores) |
 | Allocation Extension Input / Result | 不適用 | 功能畫面差異 | VCD Allocation 使用 HCM 共通 Project/System/Quota/Subnet |
 | Create VM Input / Result | 不適用 | 功能畫面差異 | 依規格決議不允許由 HCM 建立 VCD VM |
 | VM Power Input / Result | 不適用 | 功能畫面差異 | 目前專案未接 VCD 開關機能力 |
@@ -353,12 +353,12 @@ Accept: application/*+xml;version=39.1
 | --- | --- | --- |
 | `provider_pool_id` | `values[].id`（VDC id） | 必填；Pool provider 識別 |
 | `name` | `values[].name` | 必填；Pool 顯示名稱 |
-| `cpu_total` | `ComputeCapacity.Cpu.Limit` | 來源單位常為 MHz |
-| `cpu_used` | `ComputeCapacity.Cpu.Used` | 與 total 同單位 |
-| `memory_total_gb` | `ComputeCapacity.Memory.Limit` | `MB / 1024` |
-| `memory_used_gb` | `ComputeCapacity.Memory.Used` | `MB / 1024` |
-| `disk_total_gb` | `VdcStorageProfiles[].Limit` | 依 `Units` 換算 |
-| `disk_used_gb` | `VdcStorageProfiles[].StorageUsedMB` | `MB / 1024` |
+| `cpu_total` | `ComputeCapacity.Cpu.Limit` | 來源單位常為 MHz；需對齊基礎單位 (Millicores) |
+| `cpu_used` | `ComputeCapacity.Cpu.Used` | 來源單位常為 MHz；需對齊基礎單位 (Millicores) |
+| `memory_total_gb` | `ComputeCapacity.Memory.Limit` | 原始單位為 MB；需對齊基礎單位 (Bytes) |
+| `memory_used_gb` | `ComputeCapacity.Memory.Used` | 原始單位為 MB；需對齊基礎單位 (Bytes) |
+| `disk_total_gb` | `VdcStorageProfiles[].Limit` | 原始單位為 MB；需對齊基礎單位 (Bytes) |
+| `disk_used_gb` | `VdcStorageProfiles[].StorageUsedMB` | 原始單位為 MB；需對齊基礎單位 (Bytes) |
 | `ref.id` | `values[].id` URN 最後段（VDC UUID） | 重複同步識別既有 Pool；`findPoolByRef` 以此比對 |
 | `ref.name` | `values[].name` | 首次同步建立 Pool 名稱的備援來源 |
 | `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Pool；prune 時依此清理過期資料 |
@@ -460,9 +460,9 @@ Accept: application/*+xml;version=39.1
 | --- | --- | --- |
 | `template_id` | `VAppTemplateRecord.href` 最後段 | 必填；Template provider 識別 |
 | `name` | `VAppTemplateRecord.name` | 必填；顯示名稱 |
-| `default_cpu` | `VAppTemplateRecord.numberOfCpus` | 轉整數 |
-| `default_memory_gb` | `VAppTemplateRecord.memoryAllocationMB` | `MB / 1024` |
-| `default_disk_gb` | `VAppTemplateRecord.storageKB` | `KB / 1024 / 1024` |
+| `default_cpu` | `VAppTemplateRecord.numberOfCpus` | 需對齊基礎單位 (Millicores) |
+| `default_memory` | `VAppTemplateRecord.memoryAllocationMB` | 原始單位為 MB；需對齊基礎單位 (Bytes) |
+| `default_disk` | `VAppTemplateRecord.storageKB` | 原始單位為 KB；需對齊基礎單位 (Bytes) |
 
 ### 5.5 同步 VM 清單
 
@@ -548,9 +548,9 @@ Accept: application/*+xml;version=39.1
 | `provider_vm_id` | `VMRecord.href` 最後段 | 必填；作為 provider 端 VM 識別，後續開關機與追蹤使用 |
 | `name` | `VMRecord.name` | 必填；直接作為 VM 顯示名稱 |
 | `status` | `VMRecord.status` | 必填；需先轉成 HCM 標準狀態（如 `POWERED_ON` -> `running`） |
-| `cpu` | `VMRecord.numberOfCpus` | 轉整數；單位為 Core / vCPU |
-| `memory_gb` | `VMRecord.memoryMB` | `MB / 1024` 轉 GB |
-| `disk_gb` | `VMRecord.totalStorageAllocatedMb` | `MB / 1024` 轉 GB |
+| `cpu` | `VMRecord.numberOfCpus` | 需對齊基礎單位 (Millicores) |
+| `ram` | `VMRecord.memoryMB` | 原始單位為 MB；需對齊基礎單位 (Bytes) |
+| `disk` | `VMRecord.totalStorageAllocatedMb` | 原始單位為 MB；需對齊基礎單位 (Bytes) |
 | `ip` | `VMRecord.ipAddress` | 主要 IP；若明細有 NIC IP 可覆蓋 |
 | `hostname` | `GuestCustomizationSection.ComputerName` | 明細 API 補值；無值可回退 `name` |
 | `nics` | `NetworkConnectionSection.NetworkConnection` | 解析 `network` 與 `IpAddress` |
@@ -564,9 +564,9 @@ Accept: application/*+xml;version=39.1
 
 | 項目 | VCD 單位 / 狀態 | HCM 表示 | 規則 |
 | --- | --- | --- | --- |
-| CPU | MHz | Core / vCPU | 依 HCM 顯示設定換算；原始 MHz 保留於同步摘要 |
-| Memory | MB | GB | `MB / 1024` |
-| Storage | MB / KB | GB / TB | StorageProfile 以 MB，Template storage 以 KB 換算 |
+| CPU | MHz | **Millicores** | 依每 core MHz 換算 ($1$ Core = $1000$ m)；原始 MHz 保留於同步摘要 |
+| Memory | MB | GB / GiB | 需轉換至基礎單位 (Bytes) |
+| Storage | MB / KB | GB / TB | 需轉換至基礎單位 (Bytes) |
 | Network status | REALIZED | active | 其他狀態為 inactive |
 | VM status | POWERED_ON 或 status=4 | running | HCM 顯示標準狀態 |
 | VM status | POWERED_OFF 或 status=8 | stopped | HCM 顯示標準狀態 |

@@ -601,9 +601,9 @@ VM 清單同步會並行查詢 VPC 內 EC2 與 Subnet，用 SubnetId 對應 Subn
   "ipAddress": "10.0.1.10",
   "instanceType": "t3.medium",
   "status": "running",
-  "vcpu": 2,
-  "ramGb": 4,
-  "diskGb": null,
+  "vcpu": 2000,
+  "ram": 4294967296,
+  "disk": null,
   "nics": [
     {
       "name": "app-subnet-a",
@@ -621,9 +621,9 @@ VM 清單同步會並行查詢 VPC 內 EC2 與 Subnet，用 SubnetId 對應 Subn
 | `provider_vm_id` | `InstanceId` | 必填；作為 provider 端 VM 識別，後續開關機與追蹤使用 |
 | `name` | `Tags[Key=Name].Value` | 必填；無 Name tag 時可回退 `InstanceId` |
 | `status` | `State.Name` | 必填；需先轉成 HCM 標準狀態 |
-| `cpu` | `InstanceTypes[].VCpuInfo.DefaultVCpus` | 由 `DescribeInstanceTypesCommand` 補齊 |
-| `memory_gb` | `InstanceTypes[].MemoryInfo.SizeInMiB` | `MiB / 1024` 轉 GB |
-| `disk_gb` | EBS volume 資訊（本流程未解析） | 現行同步可為 `null` |
+| `cpu` | `InstanceTypes[].VCpuInfo.DefaultVCpus` | 需對齊基礎單位 (Millicores) |
+| `ram` | `InstanceTypes[].MemoryInfo.SizeInMiB` | 需對齊基礎單位 (Bytes) |
+| `disk` | EBS volume 資訊 | 需對齊基礎單位 (Bytes) |
 | `ip` | `PrivateIpAddress` | 主要 IP；可由 NIC 清單補強 |
 | `hostname` | `PrivateDnsName` | 可選 |
 | `nics` | `NetworkInterfaces[]` | 解析 Subnet、IP、Security Group |
@@ -728,16 +728,16 @@ VM 清單同步會並行查詢 VPC 內 EC2 與 Subnet，用 SubnetId 對應 Subn
 
 ## 6. 單位換算與狀態映射
 
-| 項目 | AWS 單位 / 狀態 | HCM 表示 | 規則 |
+| 項目 | AWS 單位 / 狀態 | HCM 持久層單位 | 規則 |
 | --- | --- | --- | --- |
-| vCPU | DefaultVCpus | CPU Core | 原樣帶入 |
-| Memory | MiB | GB | `MiB / 1024` |
-| Disk | GB | GB | 原樣帶入 |
+| CPU | DefaultVCpus | **Millicores** | `vCPU * 1000` |
+| Memory | SizeInMiB | **Bytes** | `MiB * 1024 * 1024` |
+| Storage | Decimal GB (EBS) | **Bytes** | `GB * 1000^3` (對齊 AWS Console 顯示) |
 | Instance state | pending | provisioning / starting | 建立或開機中 |
 | Instance state | running | running | 執行中 |
 | Instance state | stopping | stopping | 關機中 |
 | Instance state | stopped | stopped | 已停止 |
-| Instance state | terminated | deleted / stopped | 依 HCM 顯示規則 |
+| Instance state | terminated | stopped | 已終止 |
 
 ## 7. 限制與待確認
 

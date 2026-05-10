@@ -43,7 +43,7 @@ HCM 中的 Cloud / Provider ID 可以是業務命名，例如 `cht-harvester`；
 | Connection Auth Input | Base URL、API Token、TLS Skip Verify | Auth 與連線設定 | API Token 以 Bearer Token 使用 |
 | Auth Result | API 可呼叫狀態 | 授權/登入 | Harvester 無獨立登入 API，授權結果由後續 API 呼叫成功與否判斷 |
 | Sync Pools Input | Cloud Connection、Base URL、Token | 同步 Pool | Harvester 以 Cluster 形成 Pool，不依 VDC/VPC 拆分 |
-| Pool Sync Result | Cluster / Node / Longhorn 容量 | Pool 映射、同步 Pool | Node CPU/Memory 與 Longhorn storage 轉成 HCM Pool 容量 |
+| Pool Sync Result | Cluster / Node / Longhorn 容量 | 同步 Pool | 需對齊持久層基礎單位 (Bytes/Millicores) |
 | Sync Network Input | Cloud Connection、Cluster scope | 同步 Network | 取得 Cluster 可用 NetworkAttachmentDefinition |
 | Network Sync Result | NetworkAttachmentDefinition、IPPool | Network / Subnet 映射 | 轉成 HCM Subnet；Harvester 不產生 Security Group |
 | Sync VM Catalog Input | Cloud Connection、Pool | 同步 Image | Harvester 使用 Image，不使用 Template/Flavor 作為主要來源 |
@@ -268,12 +268,12 @@ Authorization: Bearer <masked>
 | --- | --- | --- |
 | `provider_pool_id` | Base URL host hash | 必填；Harvester 以整個 Cluster 作為一個 Pool；由 Connection Base URL 推導，格式 `harvester-cluster-{host-hash}` |
 | `name` | Base URL host | 必填；Pool 名稱；由 Connection Base URL host 提取 |
-| `cpu_total` | `status.allocatable.cpu`（無則 `capacity.cpu`）；原始單位：millicores（m 後綴）或 cores（無後綴） | 來源 nodes；無轉換，存儲原始值（保留 m 或數字）；單位 millicore 或 core |
-| `cpu_provisioned` | `annotations['management.cattle.io/pod-requests'].cpu`；原始單位：millicores 或 cores | 來源 nodes；無轉換，存儲原始值；單位 millicore 或 core |
-| `memory_total_gb` | `status.allocatable.memory`（無則 `capacity.memory`）；原始單位：Ki/Mi/Gi | 來源 nodes；無轉換，存儲原始值（保留 Ki/Mi/Gi 後綴）；單位 Kubernetes 記憶體表示法 |
-| `memory_provisioned_gb` | `annotations['management.cattle.io/pod-requests'].memory`；原始單位：Ki/Mi/Gi | 來源 nodes；無轉換，存儲原始值；單位 Kubernetes 記憶體表示法 |
-| `disk_total_gb` | Longhorn nodes: `status.diskStatus[*].storageMaximum`、`spec.disks[*].storageReserved`（單位：bytes）；overcommit: HarvesterSetting JSON `storage` 值（單位：百分比） | 來源 Longhorn nodes + overcommit settings；無轉換，存儲原始值；計算公式 `sum(max(0, storageMaximum - storageReserved) x (overcommit/100))` 結果為 bytes |
-| `disk_provisioned_gb` | Longhorn nodes: `status.diskStatus[*].storageScheduled`（單位：bytes） | 來源 Longhorn nodes；無轉換，存儲原始值；單位 bytes |
+| `cpu_total` | `status.allocatable.cpu`（無則 `capacity.cpu`） | 需對齊基礎單位 (Millicores) |
+| `cpu_provisioned` | `annotations['management.cattle.io/pod-requests'].cpu` | 需對齊基礎單位 (Millicores) |
+| `memory_total_bytes` | `status.allocatable.memory` | 需對齊基礎單位 (Bytes) |
+| `memory_provisioned_bytes` | `annotations['management.cattle.io/pod-requests'].memory` | 需對齊基礎單位 (Bytes) |
+| `disk_total_bytes` | Longhorn nodes 容量 | 需對齊基礎單位 (Bytes) |
+| `disk_provisioned_bytes` | Longhorn nodes 已調度量 | 需對齊基礎單位 (Bytes) |
 | `ref.id` | Base URL host hash | 重複同步識別既有 Pool；由 Connection Base URL 推導，格式 `harvester-cluster-{host-hash}` |
 | `ref.name` | Base URL host | 備援識別；由 Connection Base URL host 提取 |
 | `ref.cloud_connection_id` | Connection ID | 隔離不同連線的 Pool |
@@ -847,9 +847,9 @@ Authorization: Bearer <masked>
 | `provider_vm_id` | `metadata.namespace` + `/` + `metadata.name` | 必填；作為 provider 端 VM 識別，後續開關機與狀態追蹤使用 |
 | `name` | `metadata.name` | 必填；直接作為 VM 顯示名稱 |
 | `status` | `status.printableStatus`（VM / VMI） | 必填；需先轉成 HCM 標準狀態 |
-| `cpu` | `spec.template.spec.domain.cpu.cores` | Core / vCPU |
-| `memory_gb` | `spec.template.spec.domain.memory.guest` | 需由 Gi/Mi 等單位換算為 GB |
-| `disk_gb` | `spec.template.spec.domain.devices.disks` + volume/PVC 容量資訊 | 若來源未提供完整容量可留空 |
+| `cpu` | `spec.template.spec.domain.cpu.cores` | 需對齊基礎單位 (Millicores) |
+| `ram` | `spec.template.spec.domain.memory.guest` | 需對齊基礎單位 (Bytes) |
+| `disk` | `spec.template.spec.domain.devices.disks` | 需對齊基礎單位 (Bytes) |
 | `ip` | `status.interfaces[].ipAddress`（VMI） | 主要 IP；通常取第一張主要 NIC |
 | `hostname` | VM 名稱或 cloud-init 設定值 | 無獨立欄位時可回退 `name` |
 | `nics` | `spec.template.spec.networks` + `status.interfaces[]` | 需合併 network 名稱與 IP |
@@ -948,14 +948,13 @@ Authorization: Bearer <masked>
 
 ## 6. 單位換算與狀態映射
 
-### 6.1 單位換算
+### 6.1 單位換算 (Unit Conversion)
 
-| Provider 資料 | HCM 資料 | 換算規則 | 範例 |
+| Provider 資料 | HCM 持久層單位 | 換算規則 | 範例 |
 | --- | --- | --- | --- |
-| CPU Core | CPU Core | 原則上 1:1 | `4` -> `4 Core` |
-| Memory bytes / Ki / Mi / Gi | Memory GB | 轉成 GB 顯示 | `17179869184 bytes` -> `16 GB` |
-| Storage bytes / Gi | Disk TB 或 GB | Pool 容量轉 TB；VM Disk 轉 GB | `1024 Gi` -> `1 TB` |
-| Image storageClassName | Image metadata | 原值保留 | `longhorn` |
+| CPU (m/core) | **Millicores** | 1 Core = 1000 millicores | `4` -> `4000` |
+| Memory (Gi/Mi) | **Bytes** | 解析字串並依二進位 ($1024^n$) 轉為 Bytes | `16Gi` -> `17179869184` |
+| Storage (Bytes) | **Bytes** | 原值直送 | `107374182400` |
 
 ### 6.2 VM 狀態映射
 
