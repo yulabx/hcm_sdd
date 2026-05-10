@@ -42,7 +42,7 @@
 |---|---|---|
 | 資源池清單 | 顯示 Pool 基本資訊、模式與容量摘要 | `pools` collection |
 | 狀態 (active/inactive) | 以開關 (Toggle) 顯示目前是否可用於申請 | `pools.status` |
-| 容量摘要 | 顯示 CPU (Core)、Mem (GB)、Disk (TB) 總量 | `pools.cpu_total`, `pools.mem_total_gb`, `pools.disk_total_tb` |
+| 容量摘要 | 顯示 CPU (Core)、Mem (GB)、Disk (TB) 總量 | `pools.cpu_total`, `pools.mem_total_bytes`, `pools.disk_total_bytes` |
 | 雲端與站點 | 標示資源池所屬的 Provider 與 Site | `pools.cloud`, `pools.site` |
 
 **Event**

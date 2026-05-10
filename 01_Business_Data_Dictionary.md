@@ -37,23 +37,24 @@
 
 ## 4. 資源單位標準
 
-HCM 需用統一單位呈現資源，避免 provider 原生單位混用。
+HCM 需用統一單位呈現資源，避免 provider 原生單位混用。為了確保儲存精確度與計算一致性，系統採「持久層基礎單位」與「呈現層業務單位」分離策略。
 
-| 資源 | Pool 層級單位 | VM 層級單位 | 說明 |
+| 資源 | 持久層基礎單位 (Database) | 呈現層業務單位 (UI) | 說明 |
 |---|---|---|---|
-| CPU | Core / vCPU | Core / vCPU | provider 若使用 MHz 或其他原生單位，需轉成 Core / vCPU |
-| Memory | GB | GB | 顯示與申請皆使用 GB |
-| Disk | TB | GB | Pool 容量以 TB 呈現；VM 磁碟以 GB 呈現 |
+| CPU | **Millicores** | **Core** | 資料庫與 API 傳輸原始 Millicores；畫面由前端換算為 Core |
+| Memory | **Bytes** | **GB / GiB** | 資料庫與 API 傳輸原始 Bytes；畫面由前端依需求換算 |
+| Disk | **Bytes** | **TB / GB** | 資料庫與 API 傳輸原始 Bytes；畫面由前端換算 |
 | Network | CIDR / 網路名稱 | IP / NIC | provider 差異放在 plugin 文件 |
 
 換算責任：
 
 | 項目 | 規則 |
 |---|---|
-| HCM 畫面 | 只呈現 HCM 標準單位 |
-| HCM 申請 | 使用者以 HCM 標準單位填寫需求 |
-| Provider 同步 | provider 原始單位需轉成 HCM 標準單位後進入 HCM |
-| 已申請百分比 | 使用 HCM 標準單位計算 |
+| HCM 畫面 | 負責將原始單位轉為業務單位，支援單位切換 (GB/GiB) |
+| HCM 申請 | 使用者填寫業務單位，前端需轉為 **Millicores** 或 **Bytes** 後送出 |
+| Provider 同步 | provider 原始單位需轉成 **Millicores** 或 **Bytes** 後存入 HCM 資料庫 |
+| API 回傳 | **不進行換算**，直接回傳資料庫中的原始 Millicores 或 Bytes |
+| 已申請百分比 | 前端使用原始單位計算以確保精確度 |
 
 ## 5. 主要資料定義
 
@@ -230,13 +231,12 @@ SDD 與後續開發應以本章邏輯資料模型為準；SQLite document store 
 
 | 類別 | 規則 |
 |---|---|
-| 欄位命名 | 目前前後端資料欄位以 snake_case 為主，例如 `pool_id`、`quota_mem_gb`、`disk_total_tb` |
+| 欄位命名 | 目前前後端資料欄位以 snake_case 為主，例如 `pool_id`、`quota_mem_bytes`、`cpu_total_millicores` |
 | ID 欄位 | 每個邏輯物件必須有 HCM 內部 `id` |
 | Provider 來源識別 | provider 原始識別統一保存在 `ref.id`（及必要的 `ref.*`）欄位，供同步、開關機、狀態追蹤使用 |
-| CPU | HCM 標準呈現以 Core / vCPU 表示 |
-| Memory | HCM 標準呈現以 GB 表示 |
-| Pool Disk | Pool 容量以 TB 表示 |
-| VM Disk | VM 磁碟以 GB 表示 |
+| CPU | 資料庫統一使用 `_millicores` 結尾，例如 `cpu_total_millicores`；HCM 標準呈現以 Core / vCPU 表示 |
+| Memory | 資料庫統一使用 `_bytes` 結尾，例如 `mem_total_bytes` |
+| Disk | 資料庫統一使用 `_bytes` 結尾，例如 `disk_total_bytes` |
 | 狀態欄位 | 必須使用本文件「標準狀態」章節列出的允許值，若 provider 需要額外狀態需先定義映射 |
 | 敏感欄位 | password、token、secret、refresh token 等不得在查詢 response 中明文回傳 |
 
@@ -284,12 +284,14 @@ SDD 與後續開發應以本章邏輯資料模型為準；SQLite document store 
 | `type` | enum | 是 | `shared` 或 `dedicated` |
 | `site` | enum/string | 是 | 站點，例如 `primary`、`dr` |
 | `status` | enum | 是 | `active` 或 `inactive` |
-| `cpu_total` | number | 是 | CPU 總量，Core / vCPU |
-| `cpu_provisioned` | number/null | 否 | CPU 已配置量（provider 回報或同步推導） |
-| `mem_total_gb` | number | 是 | Memory 總量，GB |
-| `mem_provisioned_gb` | number/null | 否 | Memory 已配置量，GB（provider 回報或同步推導） |
-| `disk_total_tb` | number | 是 | Disk 總量，TB |
-| `disk_provisioned_tb` | number/null | 否 | Disk 已配置量，TB（provider 回報或同步推導） |
+| `cpu_total_millicores` | number | 是 | CPU 總量，Millicores |
+| `cpu_provisioned_millicores` | number/null | 否 | CPU 已配置量，Millicores |
+| `mem_total_bytes` | number | 是 | Memory 總量，Bytes |
+| `mem_provisioned_bytes` | number/null | 否 | Memory 已配置量，Bytes |
+| `mem_used_bytes` | number/null | 否 | Memory 已使用量（provider 回報），Bytes |
+| `disk_total_bytes` | number | 是 | Disk 總量，Bytes |
+| `disk_provisioned_bytes` | number/null | 否 | Disk 已配置量，Bytes |
+| `disk_used_bytes` | number/null | 否 | Disk 已使用量（provider 回報），Bytes |
 | `subnet_ids` | string[] | 是 | 可用 subnet ID 清單 |
 | `allowed_vm_envs` | string[] | 否 | 可建立 VM 的環境，例如 Prod、UAT |
 | `default_security_group_ids` | string[] | 否 | 預設 Security Group |
@@ -377,9 +379,9 @@ SDD 與後續開發應以本章邏輯資料模型為準；SQLite document store 
 | 欄位 | 型別 | 必填 | 說明 |
 |---|---|---|---|
 | `pool_id` | string | 是 | 申請的 pool |
-| `est_cpu` | number | 否 | shared pool 申請 CPU |
-| `est_mem` | number | 否 | shared pool 申請 Memory GB |
-| `est_disk` | number | 否 | shared pool 申請 Disk TB |
+| `est_cpu_millicores` | number | 否 | shared pool 申請 CPU，Millicores |
+| `est_mem_bytes` | number | 否 | shared pool 申請 Memory Bytes |
+| `est_disk_bytes` | number | 否 | shared pool 申請 Disk Bytes |
 | `_done` | boolean | 是 | 此 mount 是否已配置完成 |
 | `_key` | string | 是 | 前端追蹤用 key |
 | `note` | string | 否 | 備註 |
@@ -408,9 +410,9 @@ SDD 與後續開發應以本章邏輯資料模型為準；SQLite document store 
 | `env` | string | 是 | 環境 |
 | `site` | string | 是 | 站點 |
 | `status` | enum | 是 | `active` 或 `inactive` |
-| `quota_cpu` | number | 是 | shared quota CPU；dedicated 可為 0 |
-| `quota_mem_gb` | number | 是 | shared quota Memory GB；dedicated 可為 0 |
-| `quota_disk_tb` | number | 是 | shared quota Disk TB；dedicated 可為 0 |
+| `quota_cpu_millicores` | number | 是 | shared quota CPU，Millicores |
+| `quota_mem_bytes` | number | 是 | shared quota Memory Bytes |
+| `quota_disk_bytes` | number | 是 | shared quota Disk Bytes |
 | `allowed_subnet_ids` | string[] | 否 | 此 allocation 可用 subnet |
 | `namespace` | string/null | 否 | Harvester 等 provider 附加隔離資源 |
 | `namespace_status` | enum/null | 否 | `pending`、`ready`、`error` |
@@ -426,9 +428,9 @@ SDD 與後續開發應以本章邏輯資料模型為準；SQLite document store 
 | `pool_id` | string | 是 | 所屬 pool |
 | `alloc_id` | string/null | 否 | shared allocation ID |
 | `status` | enum | 是 | VM 標準狀態 |
-| `vcpu` | number | 是 | CPU Core / vCPU |
-| `ram_gb` | number | 是 | Memory GB |
-| `disk_gb` | number | 是 | Disk GB |
+| `vcpu_millicores` | number | 是 | CPU Core / vCPU，Millicores |
+| `ram_bytes` | number | 是 | Memory Bytes |
+| `disk_bytes` | number | 是 | Disk Bytes |
 | `disks` | array | 否 | 磁碟清單 |
 | `subnet_id` | string/null | 否 | 主要 subnet |
 | `ip` | string/null | 否 | 主要 IP |
@@ -457,7 +459,7 @@ SDD 與後續開發應以本章邏輯資料模型為準；SQLite document store 
 |---|---|---|---|
 | `name` | string | 是 | Disk 名稱 |
 | `role` | enum | 是 | `os` 或 `data` |
-| `size_gb` | number | 是 | Disk 大小，GB |
+| `size_bytes` | number | 是 | Disk 大小，Bytes |
 | `type` | enum/string | 是 | `ssd`、`hdd` 或 provider 定義類型 |
 
 ### 6.5 資料生命週期規則
