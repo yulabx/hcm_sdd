@@ -83,6 +83,7 @@ HCM 需用統一單位呈現資源，避免 provider 原生單位混用。為了
 | 同步狀態 | 尚未同步、同步中、成功、失敗 | 功能文件描述畫面呈現 |
 | 最後同步時間 | 最後一次同步完成時間 | 用於管理員判斷資料新鮮度 |
 | 同步範圍 | 可選的 pool / namespace / region 範圍 | 依 provider 能力決定 |
+| 是否允許配額超用 | VM 建立超出 Pool / Allocation 配額時是否仍允許建立 | `allow_quota_overcommit`；AWS / VCD 預設 false，vSphere / Harvester 預設 true |
 
 ### 5.3 Pool
 

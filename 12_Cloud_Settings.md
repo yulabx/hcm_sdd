@@ -107,6 +107,7 @@ Provider 表單
 | Provider 類型 | 決定使用哪一類 provider plugin | 使用者選擇 |
 | 啟用狀態 | 控制是否可新增 connection | 使用者輸入 |
 | Site / Region / Env 設定 | Pool 補資料與總覽分類 | 使用者輸入 |
+| 配額超用政策 | 決定建立 VM 超出 Pool / Allocation 配額時是阻擋或只警示 | Cloud Provider 設定；AWS / VCD 預設不允許，vSphere / Harvester 預設允許 |
 | Subnet Type 設定 | Network 同步後補齊 subnet 業務類型 | 使用者輸入 |
 | VM 表單規則 | VM Management 顯示哪些 VM 欄位與選項 | 使用者輸入 |
 
