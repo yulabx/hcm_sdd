@@ -54,7 +54,8 @@ HCM 需用統一單位呈現資源，避免 provider 原生單位混用。為了
 | HCM 申請 | 使用者填寫業務單位，前端需轉為 **Millicores** 或 **Bytes** 後送出 |
 | Provider 同步 | provider 原始單位需轉成 **Millicores** 或 **Bytes** 後存入 HCM 資料庫 |
 | API 回傳 | **不進行換算**，直接回傳資料庫中的原始 Millicores 或 Bytes |
-| 已申請百分比 | 前端使用原始單位計算以確保精確度 |
+| 已申請百分比 | 前端使用 `*_provisioned_* / *_total_*` 原始單位計算以確保精確度 |
+| 使用量百分比 | 前端使用 `*_used_* / *_total_*` 原始單位計算以確保精確度 |
 
 ## 5. 主要資料定義
 
@@ -94,11 +95,20 @@ HCM 需用統一單位呈現資源，避免 provider 原生單位混用。為了
 | Pool 類型 | shared 或 dedicated | 影響申請與分配方式 |
 | 環境 | Prod、UAT、SIT、DR 等 | 用於篩選與 VM 建立條件 |
 | CPU 總量 | 可管理 CPU 容量 | HCM 標準單位 |
-| CPU 已配置/已使用 | 已配置或 provider 回報使用量 | 指標意義由功能文件定義 |
+| CPU 已配置/已使用 | 已配置量與 provider 回報使用量分開保存 | `*_provisioned_*` 用於已申請視角，`*_used_*` 用於使用量視角 |
 | Memory 總量 | 可管理 Memory 容量 | GB |
 | Disk 總量 | 可管理 Disk 容量 | TB |
 | 可用 Subnet | Pool 可使用的網路 | 由 Subnet 關聯 |
 | Provider 來源識別 | 對應 provider 原始資源 | 用於同步與 VM 操作 |
+
+Pool 容量視角：
+
+| 視角 | 分子欄位 | 分母欄位 | 業務意義 |
+|---|---|---|---|
+| 已申請 | `cpu_provisioned_millicores`、`mem_provisioned_bytes`、`disk_provisioned_bytes` | `cpu_total_millicores`、`mem_total_bytes`、`disk_total_bytes` | 已分配、已申請或已承諾出去的容量 |
+| 使用量 | `cpu_used_millicores`、`mem_used_bytes`、`disk_used_bytes` | `cpu_total_millicores`、`mem_total_bytes`、`disk_total_bytes` | Provider 回報的實際消耗量 |
+
+前端總覽類 bar 可切換上述兩種視角；新增 VM、Allocation 配額檢查仍以業務配額 / 已申請語意為主，不受總覽視角切換影響。
 
 ### 5.4 Subnet
 
