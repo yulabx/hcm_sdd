@@ -191,8 +191,9 @@ Accept: application/json
 | `ref.sync_meta.cpu_mhz_per_core` | MHz → Core 換算基準 | vSphere 使用 MHz；換算 Core 顯示時需要此值 |
 | `ref.sync_meta.cpu_total_mhz` | `total_cpu_mhz` | 保留原始 MHz 值供換算調整 |
 | `ref.sync_meta.cpu_used_mhz` | `used_cpu_mhz` | 保留原始 MHz 值供換算調整 |
+| `ref.sync_meta.cpu_mhz_per_core` | HCM 手動校正值優先；首次同步預設 `2000` | vSphere 介接 API 不回報 MHz/Core 時，Admin 可在 Cloud Initialization 手動輸入；後續同步不得覆蓋回預設值 |
 
-> UI 資源條顯示規則：Pool bar 的分母為 `*_total_*`，分子統一使用 `*_provisioned_*`（已申請 / 已配置量）。因此 vSphere 的 CPU / Memory provisioned 由 VM 清單加總，Storage provisioned 直接使用 `/clusters` 的 `provisioned_storage_bytes`。
+> UI 資源條顯示規則：Pool bar 支援「已申請」與「使用量」兩種視角。已申請視角使用 `*_provisioned_* / *_total_*`，vSphere 的 CPU / Memory provisioned 由 VM 清單加總，Storage provisioned 使用 `/clusters` 的 `provisioned_storage_bytes`；使用量視角使用 `*_used_* / *_total_*`，來源為 `/clusters` 的 CPU、Memory、Storage used 欄位。vSphere 已申請量可能因 overcommit 大於總量，UI 需保留真實百分比並將 bar 寬度 capped 在 100%。
 
 ### 5.3 同步 Network
 
